@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, sessionMsg } = useAuth();
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,6 +28,10 @@ export default function Login() {
         <div className="login-logo">🏥</div>
         <h1 className="login-title">Mesa de Contingencia</h1>
         <p className="login-sub">Facultad de Medicina · UCV</p>
+
+        {sessionMsg && (
+          <div className="login-session-msg">⚠️ {sessionMsg}</div>
+        )}
 
         <form onSubmit={submit} className="login-form">
           <label>
