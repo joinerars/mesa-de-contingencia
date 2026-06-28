@@ -1,11 +1,15 @@
-import secrets
+import os
+import jwt
+import datetime
 from functools import wraps
 from flask import request, jsonify
 from werkzeug.security import check_password_hash
 from .db import get_connection
 
-# Token store en memoria: {token: user_dict}
-_tokens = {}
+SECRET = os.getenv("JWT_SECRET", "mesa-contingencia-secret-key-2026")
+ALGO = "HS256"
+TTL_HOURS = 8
+
 
 def login_user(username, password):
     conn = get_connection()
@@ -15,27 +19,38 @@ def login_user(username, password):
         FROM MesaDeContingencia.usuarios u
         LEFT JOIN MesaDeContingencia.grupos_trabajo g ON g.id = u.grupo_id
         WHERE u.username = %s AND u.activo = 1
-    """, username)
+    """, (username,))
     row = cur.fetchone()
     conn.close()
     if not row or not check_password_hash(row[2], password):
         return None
-    token = secrets.token_hex(32)
     user = {
         "id": row[0], "username": row[1], "rol": row[3],
         "grupo_id": row[4], "grupo_nombre": row[5]
     }
-    _tokens[token] = user
+    payload = {**user, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=TTL_HOURS)}
+    token = jwt.encode(payload, SECRET, algorithm=ALGO)
     return token, user
 
+
 def logout_token(token):
-    _tokens.pop(token, None)
+    pass  # JWT es stateless, no hay nada que invalidar en el servidor
+
 
 def get_current_user():
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    return _tokens.get(auth[7:])
+    token = auth[7:]
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=[ALGO])
+        payload.pop("exp", None)
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
 
 def require_auth(f):
     @wraps(f)
@@ -45,6 +60,7 @@ def require_auth(f):
             return jsonify({"error": "No autenticado"}), 401
         return f(*args, **kwargs)
     return decorated
+
 
 def require_admin(f):
     @wraps(f)
