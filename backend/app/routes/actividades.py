@@ -1,0 +1,144 @@
+from flask import request, jsonify
+from . import main_bp
+from ..db import get_connection
+from ..auth import require_auth, require_admin, get_current_user
+
+ESTADOS = ["Por ejecutar", "En ejecución", "Ejecutado"]
+
+@main_bp.post("/api/actividades")
+@require_auth
+def crear_actividad():
+    user = get_current_user()
+    data = request.get_json() or {}
+    solicitud_id = data.get("solicitud_id")
+    grupo_id = data.get("grupo_id")
+    if not solicitud_id or not grupo_id:
+        return jsonify({"error": "solicitud_id y grupo_id requeridos"}), 400
+    # Un grupo solo puede asignarse a sí mismo
+    if user["rol"] == "grupo" and int(grupo_id) != user["grupo_id"]:
+        return jsonify({"error": "Solo puedes asignar actividades a tu propio grupo"}), 403
+    conn = get_connection()
+    cur = conn.cursor()
+    # Verificar que la solicitud pertenece al grupo (si es grupo)
+    if user["rol"] == "grupo":
+        cur.execute("SELECT creado_por_grupo_id FROM MesaDeContingencia.solicitudes WHERE id = ?", solicitud_id)
+        row = cur.fetchone()
+        if not row or row[0] != user["grupo_id"]:
+            conn.close()
+            return jsonify({"error": "Solo puedes autoasignarte tus propias solicitudes"}), 403
+    cur.execute("SELECT id FROM MesaDeContingencia.actividades WHERE solicitud_id = ?", solicitud_id)
+    if cur.fetchone():
+        conn.close()
+        return jsonify({"error": "Esta solicitud ya fue asignada"}), 409
+    cur.execute("""
+        INSERT INTO MesaDeContingencia.actividades (solicitud_id, grupo_id, estado)
+        OUTPUT INSERTED.id VALUES (?, ?, 'Por ejecutar')
+    """, solicitud_id, grupo_id)
+    new_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return jsonify({"id": new_id, "estado": "Por ejecutar"}), 201
+
+@main_bp.put("/api/actividades/<int:act_id>")
+@require_auth
+def actualizar_actividad(act_id):
+    user = get_current_user()
+    data = request.get_json() or {}
+    nuevo_estado = data.get("estado")
+    if nuevo_estado not in ESTADOS:
+        return jsonify({"error": f"Estado inválido. Valores: {ESTADOS}"}), 400
+    conn = get_connection()
+    cur = conn.cursor()
+    # Grupos solo pueden actualizar sus propias actividades
+    if user["rol"] == "grupo":
+        cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = ?", act_id)
+        row = cur.fetchone()
+        if not row or row[0] != user["grupo_id"]:
+            conn.close()
+            return jsonify({"error": "Acceso denegado"}), 403
+    cur.execute("""
+        UPDATE MesaDeContingencia.actividades
+        SET estado = ?, fecha_actualizacion = GETDATE() WHERE id = ?
+    """, nuevo_estado, act_id)
+    conn.commit()
+    conn.close()
+    return jsonify({"id": act_id, "estado": nuevo_estado})
+
+@main_bp.put("/api/actividades/<int:act_id>/miembros")
+@require_auth
+def set_miembros_actividad(act_id):
+    user = get_current_user()
+    if user["rol"] != "grupo":
+        return jsonify({"error": "Solo los grupos de trabajo pueden asignar miembros a actividades"}), 403
+    data = request.get_json() or {}
+    miembro_ids = data.get("miembro_ids", [])
+    conn = get_connection()
+    cur = conn.cursor()
+    # Verificar acceso
+    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = ?", act_id)
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Actividad no encontrada"}), 404
+    if user["rol"] == "grupo" and row[0] != user["grupo_id"]:
+        conn.close()
+        return jsonify({"error": "Acceso denegado"}), 403
+    # Reemplazar membresía
+    cur.execute("DELETE FROM MesaDeContingencia.actividad_miembros WHERE actividad_id = ?", act_id)
+    for mid in miembro_ids:
+        cur.execute("INSERT INTO MesaDeContingencia.actividad_miembros (actividad_id, miembro_id) VALUES (?, ?)", act_id, mid)
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "miembro_ids": miembro_ids})
+
+@main_bp.get("/api/actividades")
+@require_auth
+def listar_actividades():
+    user = get_current_user()
+    conn = get_connection()
+    cur = conn.cursor()
+    base = """
+        SELECT a.id, a.estado, a.fecha_asignacion, a.fecha_actualizacion,
+               s.id, s.descripcion, s.ubicacion, s.fecha_hora, s.prioridad, s.lat, s.lng,
+               ms.nombre, ms.telefono, ms.email,
+               g.id, g.nombre, m.nombre AS rep_nombre
+        FROM MesaDeContingencia.actividades a
+        JOIN MesaDeContingencia.solicitudes s ON s.id = a.solicitud_id
+        JOIN MesaDeContingencia.grupos_trabajo g ON g.id = a.grupo_id
+        LEFT JOIN MesaDeContingencia.miembros m  ON m.id  = g.representante_principal_id
+        LEFT JOIN MesaDeContingencia.miembros ms ON ms.id = s.solicitante_id
+    """
+    if user["rol"] == "grupo":
+        cur.execute(base + " WHERE a.grupo_id = ? ORDER BY a.fecha_actualizacion DESC", user["grupo_id"])
+    else:
+        cur.execute(base + " ORDER BY a.fecha_actualizacion DESC")
+    actividades = {r[0]: {
+        "id": r[0], "estado": r[1],
+        "fecha_asignacion": str(r[2]), "fecha_actualizacion": str(r[3]),
+        "solicitud": {
+            "id": r[4], "descripcion": r[5],
+            "ubicacion": r[6],
+            "fecha_hora": str(r[7]) if r[7] else None,
+            "prioridad": r[8] or "Normal",
+            "lat": r[9], "lng": r[10],
+            "solicitante_nombre": r[11],
+            "solicitante_telefono": r[12],
+            "solicitante_email": r[13],
+        },
+        "grupo": {"id": r[14], "nombre": r[15], "representante": r[16]},
+        "miembros": []
+    } for r in cur.fetchall()}
+
+    if actividades:
+        cur.execute("""
+            SELECT am.actividad_id, m.id, m.nombre, m.cargo
+            FROM MesaDeContingencia.actividad_miembros am
+            JOIN MesaDeContingencia.miembros m ON m.id = am.miembro_id
+            WHERE am.actividad_id IN ({})
+        """.format(",".join(str(k) for k in actividades)))
+        for r in cur.fetchall():
+            if r[0] in actividades:
+                actividades[r[0]]["miembros"].append({"id": r[1], "nombre": r[2], "cargo": r[3]})
+
+    conn.close()
+    return jsonify(list(actividades.values()))
