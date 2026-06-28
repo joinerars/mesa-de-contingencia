@@ -477,3 +477,96 @@ fieldset legend { padding: 0 0.4rem; font-size: 0.8rem; font-weight: 600; color:
 
 /* ── Misc ── */
 .empty { color: #9ca3af; font-size: 0.85rem; text-align: center; padding: 1rem 0; }
+
+/* ══════════════════════════════════════════
+   RESPONSIVE MÓVIL
+══════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* Header compacto */
+  .app-header { padding: 0.6rem 1rem 0; }
+  .header-logo { width: 36px; height: 36px; }
+  .header-inner h1 { font-size: 1rem; }
+  .subtitle { font-size: 0.72rem; }
+  .username-label { display: none; }
+  .role-badge { font-size: 0.7rem; padding: 2px 7px; }
+  .btn-logout { font-size: 0.72rem; padding: 0.25rem 0.5rem; }
+
+  /* Nav tabs que hacen scroll horizontal */
+  .nav { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; gap: 0; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn { padding: 0.5rem 0.85rem; font-size: 0.8rem; white-space: nowrap; flex-shrink: 0; }
+
+  /* Main con menos padding */
+  .main { padding: 0.85rem; }
+
+  /* Módulo */
+  .modulo { padding: 1rem; border-radius: 10px; }
+
+  /* Formularios full-width */
+  .form { max-width: 100%; }
+  .form-row { grid-template-columns: 1fr; }
+
+  /* Botones más grandes (touch friendly) */
+  .btn-primary, .btn-secondary, .btn-ghost {
+    padding: 0.65rem 1.1rem;
+    font-size: 0.9rem;
+  }
+
+  /* Cards */
+  .card { flex-direction: column; gap: 0.6rem; }
+
+  /* Modales fullscreen en móvil */
+  .overlay { align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 1.25rem 1rem;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .modal-detalle {
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .modal-actions { flex-direction: column; }
+  .modal-actions button { width: 100%; justify-content: center; }
+
+  /* Kanban: una columna apilada */
+  .kanban { grid-template-columns: 1fr; }
+
+  /* Actividades header */
+  .act-header { flex-direction: column; align-items: stretch; }
+  .filtro-grupo { flex-direction: column; align-items: stretch; }
+  .filtro-grupo select { width: 100%; }
+
+  /* Tabla: scroll horizontal */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .reg-table { font-size: 0.8rem; min-width: 480px; }
+  .reg-table th, .reg-table td { padding: 0.45rem 0.6rem; }
+
+  /* Grupos cards: 1 columna */
+  .grupo-cards { grid-template-columns: 1fr; }
+
+  /* Solicitudes form */
+  .sol-form { max-width: 100%; }
+  .prioridad-group { gap: 0.3rem; }
+
+  /* Mapa más chico */
+  .mapa-container { height: 220px; }
+
+  /* Panel notificaciones full width */
+  .notif-panel { width: calc(100vw - 2rem); right: -0.5rem; }
+
+  /* Detalle de actividad */
+  .detalle-row { flex-direction: column; gap: 0.2rem; }
+  .detalle-label { min-width: unset; }
+
+  /* Comentarios más compactos */
+  .comentarios-wrap { height: 360px; }
+
+  /* Tabs de detalle */
+  .detalle-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .detalle-tab { white-space: nowrap; padding: 0.45rem 0.85rem; font-size: 0.82rem; }
+}
