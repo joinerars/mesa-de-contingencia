@@ -1,4 +1,5 @@
-const BASE = "/api";
+const rawBase = import.meta.env.VITE_API_BASE_URL?.trim() || "/api";
+const BASE = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
 
 function getToken() {
   try {
@@ -25,8 +26,20 @@ async function req(method, path, body) {
     throw new Error("Sesión expirada");
   }
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  const contentType = res.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+  const data = isJson ? await res.json() : null;
+
+  if (!res.ok) {
+    const fallbackText = !isJson ? await res.text() : "";
+    throw new Error(
+      data?.error ||
+      data?.message ||
+      fallbackText ||
+      `Error ${res.status}: ${res.statusText}`
+    );
+  }
+
   return data;
 }
 
