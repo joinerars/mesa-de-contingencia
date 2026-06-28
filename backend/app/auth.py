@@ -14,7 +14,7 @@ def login_user(username, password):
         SELECT u.id, u.username, u.password_hash, u.rol, u.grupo_id, g.nombre
         FROM MesaDeContingencia.usuarios u
         LEFT JOIN MesaDeContingencia.grupos_trabajo g ON g.id = u.grupo_id
-        WHERE u.username = ? AND u.activo = 1
+        WHERE u.username = %s AND u.activo = 1
     """, username)
     row = cur.fetchone()
     conn.close()

@@ -21,18 +21,18 @@ def crear_actividad():
     cur = conn.cursor()
     # Verificar que la solicitud pertenece al grupo (si es grupo)
     if user["rol"] == "grupo":
-        cur.execute("SELECT creado_por_grupo_id FROM MesaDeContingencia.solicitudes WHERE id = ?", solicitud_id)
+        cur.execute("SELECT creado_por_grupo_id FROM MesaDeContingencia.solicitudes WHERE id = %s", solicitud_id)
         row = cur.fetchone()
         if not row or row[0] != user["grupo_id"]:
             conn.close()
             return jsonify({"error": "Solo puedes autoasignarte tus propias solicitudes"}), 403
-    cur.execute("SELECT id FROM MesaDeContingencia.actividades WHERE solicitud_id = ?", solicitud_id)
+    cur.execute("SELECT id FROM MesaDeContingencia.actividades WHERE solicitud_id = %s", solicitud_id)
     if cur.fetchone():
         conn.close()
         return jsonify({"error": "Esta solicitud ya fue asignada"}), 409
     cur.execute("""
         INSERT INTO MesaDeContingencia.actividades (solicitud_id, grupo_id, estado)
-        OUTPUT INSERTED.id VALUES (?, ?, 'Por ejecutar')
+        OUTPUT INSERTED.id VALUES (%s, %s, 'Por ejecutar')
     """, solicitud_id, grupo_id)
     new_id = cur.fetchone()[0]
     conn.commit()
@@ -51,14 +51,14 @@ def actualizar_actividad(act_id):
     cur = conn.cursor()
     # Grupos solo pueden actualizar sus propias actividades
     if user["rol"] == "grupo":
-        cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = ?", act_id)
+        cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", act_id)
         row = cur.fetchone()
         if not row or row[0] != user["grupo_id"]:
             conn.close()
             return jsonify({"error": "Acceso denegado"}), 403
     cur.execute("""
         UPDATE MesaDeContingencia.actividades
-        SET estado = ?, fecha_actualizacion = GETDATE() WHERE id = ?
+        SET estado = %s, fecha_actualizacion = GETDATE() WHERE id = %s
     """, nuevo_estado, act_id)
     conn.commit()
     conn.close()
@@ -75,7 +75,7 @@ def set_miembros_actividad(act_id):
     conn = get_connection()
     cur = conn.cursor()
     # Verificar acceso
-    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = ?", act_id)
+    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", act_id)
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -84,9 +84,9 @@ def set_miembros_actividad(act_id):
         conn.close()
         return jsonify({"error": "Acceso denegado"}), 403
     # Reemplazar membresía
-    cur.execute("DELETE FROM MesaDeContingencia.actividad_miembros WHERE actividad_id = ?", act_id)
+    cur.execute("DELETE FROM MesaDeContingencia.actividad_miembros WHERE actividad_id = %s", act_id)
     for mid in miembro_ids:
-        cur.execute("INSERT INTO MesaDeContingencia.actividad_miembros (actividad_id, miembro_id) VALUES (?, ?)", act_id, mid)
+        cur.execute("INSERT INTO MesaDeContingencia.actividad_miembros (actividad_id, miembro_id) VALUES (%s, %s)", act_id, mid)
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "miembro_ids": miembro_ids})
@@ -109,7 +109,7 @@ def listar_actividades():
         LEFT JOIN MesaDeContingencia.miembros ms ON ms.id = s.solicitante_id
     """
     if user["rol"] == "grupo":
-        cur.execute(base + " WHERE a.grupo_id = ? ORDER BY a.fecha_actualizacion DESC", user["grupo_id"])
+        cur.execute(base + " WHERE a.grupo_id = %s ORDER BY a.fecha_actualizacion DESC", user["grupo_id"])
     else:
         cur.execute(base + " ORDER BY a.fecha_actualizacion DESC")
     actividades = {r[0]: {

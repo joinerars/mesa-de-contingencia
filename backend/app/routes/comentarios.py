@@ -11,7 +11,7 @@ def get_comentarios(act_id):
     cur.execute("""
         SELECT id, autor_username, autor_rol, grupo_id, texto, fecha_creacion
         FROM MesaDeContingencia.actividad_comentarios
-        WHERE actividad_id = ?
+        WHERE actividad_id = %s
         ORDER BY fecha_creacion ASC
     """, act_id)
     rows = [{"id": r[0], "autor": r[1], "rol": r[2], "grupo_id": r[3],
@@ -33,7 +33,7 @@ def crear_comentario(act_id):
     cur = conn.cursor()
 
     # Verificar que la actividad existe y obtener grupo_id
-    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = ?", act_id)
+    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", act_id)
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -45,7 +45,7 @@ def crear_comentario(act_id):
         INSERT INTO MesaDeContingencia.actividad_comentarios
             (actividad_id, autor_username, autor_rol, grupo_id, texto)
         OUTPUT INSERTED.id, INSERTED.fecha_creacion
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     """, act_id, user["username"], user["rol"], user.get("grupo_id"), texto)
     nuevo = cur.fetchone()
     nuevo_id, fecha = nuevo[0], str(nuevo[1])
@@ -58,7 +58,7 @@ def crear_comentario(act_id):
     cur.execute("""
         INSERT INTO MesaDeContingencia.notificaciones
             (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
-        VALUES ('admin', NULL, ?, ?, ?)
+        VALUES ('admin', NULL, %s, %s, %s)
     """, act_id, nuevo_id, notif_texto)
 
     # Si quien comenta es admin → notificar al grupo dueño de la actividad
@@ -67,7 +67,7 @@ def crear_comentario(act_id):
         cur.execute("""
             INSERT INTO MesaDeContingencia.notificaciones
                 (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
-            VALUES ('grupo', ?, ?, ?, ?)
+            VALUES ('grupo', %s, %s, %s, %s)
         """, grupo_actividad_id, act_id, nuevo_id, notif_texto)
 
     conn.commit()
@@ -93,7 +93,7 @@ def get_notificaciones():
         cur.execute("""
             SELECT id, actividad_id, texto, leida, fecha_creacion
             FROM MesaDeContingencia.notificaciones
-            WHERE para_rol = 'grupo' AND para_grupo_id = ?
+            WHERE para_rol = 'grupo' AND para_grupo_id = %s
             ORDER BY fecha_creacion DESC
         """, user["grupo_id"])
     rows = [{"id": r[0], "actividad_id": r[1], "texto": r[2],
@@ -107,7 +107,7 @@ def get_notificaciones():
 def marcar_leida(nid):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE MesaDeContingencia.notificaciones SET leida = 1 WHERE id = ?", nid)
+    cur.execute("UPDATE MesaDeContingencia.notificaciones SET leida = 1 WHERE id = %s", nid)
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -124,7 +124,7 @@ def leer_todas():
     else:
         cur.execute("""
             UPDATE MesaDeContingencia.notificaciones SET leida = 1
-            WHERE para_rol = 'grupo' AND para_grupo_id = ?
+            WHERE para_rol = 'grupo' AND para_grupo_id = %s
         """, user["grupo_id"])
     conn.commit()
     conn.close()

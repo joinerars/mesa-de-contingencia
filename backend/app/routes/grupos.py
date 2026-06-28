@@ -9,7 +9,7 @@ def _fetch_grupo(cur, grupo_id):
         SELECT g.id, g.nombre, g.descripcion, m.id, m.nombre
         FROM MesaDeContingencia.grupos_trabajo g
         LEFT JOIN MesaDeContingencia.miembros m ON m.id = g.representante_principal_id
-        WHERE g.id = ?
+        WHERE g.id = %s
     """, grupo_id)
     r = cur.fetchone()
     if not r:
@@ -20,7 +20,7 @@ def _fetch_grupo(cur, grupo_id):
         SELECT m.id, m.nombre, m.cargo
         FROM MesaDeContingencia.miembros_grupos mg
         JOIN MesaDeContingencia.miembros m ON m.id = mg.miembro_id
-        WHERE mg.grupo_id = ?
+        WHERE mg.grupo_id = %s
     """, grupo_id)
     grupo["miembros"] = [{"id": r[0], "nombre": r[1], "cargo": r[2]} for r in cur.fetchall()]
     return grupo
@@ -36,7 +36,7 @@ def listar_grupos():
             SELECT g.id, g.nombre, g.descripcion, m.id, m.nombre
             FROM MesaDeContingencia.grupos_trabajo g
             LEFT JOIN MesaDeContingencia.miembros m ON m.id = g.representante_principal_id
-            WHERE g.id = ?
+            WHERE g.id = %s
         """, user["grupo_id"])
     else:
         cur.execute("""
@@ -74,8 +74,8 @@ def editar_grupo(grupo_id):
     cur = conn.cursor()
     cur.execute("""
         UPDATE MesaDeContingencia.grupos_trabajo
-        SET nombre = ?, descripcion = ?, representante_principal_id = ?
-        WHERE id = ?
+        SET nombre = %s, descripcion = %s, representante_principal_id = %s
+        WHERE id = %s
     """, nombre, data.get("descripcion"), rep_id or None, grupo_id)
     if cur.rowcount == 0:
         conn.close()
@@ -93,7 +93,7 @@ def get_usuario_grupo(grupo_id):
     cur = conn.cursor()
     cur.execute("""
         SELECT id, username, activo FROM MesaDeContingencia.usuarios
-        WHERE grupo_id = ? AND rol = 'grupo'
+        WHERE grupo_id = %s AND rol = 'grupo'
     """, grupo_id)
     row = cur.fetchone()
     conn.close()
@@ -115,17 +115,17 @@ def crear_usuario_grupo(grupo_id):
     conn = get_connection()
     cur = conn.cursor()
     # Verificar que el grupo existe
-    cur.execute("SELECT id FROM MesaDeContingencia.grupos_trabajo WHERE id = ?", grupo_id)
+    cur.execute("SELECT id FROM MesaDeContingencia.grupos_trabajo WHERE id = %s", grupo_id)
     if not cur.fetchone():
         conn.close()
         return jsonify({"error": "Grupo no encontrado"}), 404
     # Verificar username único
-    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE username = ?", username)
+    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE username = %s", username)
     if cur.fetchone():
         conn.close()
         return jsonify({"error": f"El usuario '{username}' ya existe"}), 409
     # Verificar que el grupo no tiene ya un usuario
-    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE grupo_id = ? AND rol = 'grupo'", grupo_id)
+    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE grupo_id = %s AND rol = 'grupo'", grupo_id)
     if cur.fetchone():
         conn.close()
         return jsonify({"error": "Este grupo ya tiene un usuario asignado"}), 409
@@ -133,7 +133,7 @@ def crear_usuario_grupo(grupo_id):
     cur.execute("""
         INSERT INTO MesaDeContingencia.usuarios (username, password_hash, rol, grupo_id, activo)
         OUTPUT INSERTED.id
-        VALUES (?, ?, 'grupo', ?, 1)
+        VALUES (%s, %s, 'grupo', %s, 1)
     """, username, h, grupo_id)
     new_id = cur.fetchone()[0]
     conn.commit()
@@ -152,8 +152,8 @@ def cambiar_password_grupo(grupo_id):
     cur = conn.cursor()
     h = generate_password_hash(password)
     cur.execute("""
-        UPDATE MesaDeContingencia.usuarios SET password_hash = ?
-        WHERE grupo_id = ? AND rol = 'grupo'
+        UPDATE MesaDeContingencia.usuarios SET password_hash = %s
+        WHERE grupo_id = %s AND rol = 'grupo'
     """, h, grupo_id)
     if cur.rowcount == 0:
         conn.close()

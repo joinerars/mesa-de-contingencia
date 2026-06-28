@@ -64,7 +64,7 @@ def crear_solicitud():
             (descripcion, creado_por_grupo_id, ubicacion, fecha_hora,
              prioridad, lat, lng, solicitante_id)
         OUTPUT INSERTED.id, INSERTED.fecha_creacion
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """, descripcion, grupo_id,
         data.get("ubicacion"), _parse_fecha(data.get("fecha_hora")),
         prioridad,
@@ -96,7 +96,7 @@ def listar_solicitudes():
     if user["rol"] == "admin":
         cur.execute(SELECT_BASE + ORDER)
     else:
-        cur.execute(SELECT_BASE + " WHERE s.creado_por_grupo_id = ? " + ORDER, user["grupo_id"])
+        cur.execute(SELECT_BASE + " WHERE s.creado_por_grupo_id = %s " + ORDER, user["grupo_id"])
     rows = [_row_to_dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)
