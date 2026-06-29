@@ -49,6 +49,45 @@ ORDER = """ORDER BY
     CASE s.prioridad WHEN 'Alta' THEN 1 WHEN 'Normal' THEN 2 ELSE 3 END,
     s.fecha_creacion DESC"""
 
+
+def _get_items(cur, solicitud_ids):
+    """Returns dict: solicitud_id -> list of items."""
+    if not solicitud_ids:
+        return {}
+    ids_str = ",".join(str(i) for i in solicitud_ids)
+    cur.execute(f"""
+        SELECT solicitud_id, id, nombre, cantidad
+        FROM {SCHEMA}.solicitud_items
+        WHERE solicitud_id IN ({ids_str})
+        ORDER BY id
+    """)
+    result = {}
+    for r in cur.fetchall():
+        result.setdefault(r[0], []).append({"id": r[1], "nombre": r[2], "cantidad": r[3]})
+    return result
+
+
+def _insert_items(cur, solicitud_id, items):
+    for item in (items or []):
+        nombre = (item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        cantidad = int(item.get("cantidad") or 1)
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.solicitud_items (solicitud_id, nombre, cantidad)
+            VALUES (%s, %s, %s)
+        """, (solicitud_id, nombre, cantidad))
+
+
+def _rows_with_items(cur, rows):
+    dicts = [_row_to_dict(r) for r in rows]
+    ids = [d["id"] for d in dicts]
+    items_map = _get_items(cur, ids)
+    for d in dicts:
+        d["items"] = items_map.get(d["id"], [])
+    return dicts
+
+
 @main_bp.post("/api/solicitudes")
 @require_auth
 def crear_solicitud():
@@ -76,9 +115,11 @@ def crear_solicitud():
           data.get("lat"), data.get("lng"),
           data.get("solicitante_id") or None))
     row = cur.fetchone()
+    new_id = row[0]
+    _insert_items(cur, new_id, data.get("items", []))
     conn.commit()
     conn.close()
-    return jsonify({"id": row[0], "descripcion": descripcion, "fecha_creacion": str(row[1])}), 201
+    return jsonify({"id": new_id, "descripcion": descripcion, "fecha_creacion": str(row[1])}), 201
 
 @main_bp.put("/api/solicitudes/<int:sol_id>")
 @require_auth
@@ -120,6 +161,8 @@ def editar_solicitud(sol_id):
           data.get("lat"), data.get("lng"),
           data.get("solicitante_id") or None,
           sol_id))
+    cur.execute(f"DELETE FROM {SCHEMA}.solicitud_items WHERE solicitud_id=%s", (sol_id,))
+    _insert_items(cur, sol_id, data.get("items", []))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -133,7 +176,7 @@ def solicitudes_centro():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(_select_base() + " WHERE s.creado_por_centro_id = %s " + ORDER, (user["centro_id"],))
-    rows = [_row_to_dict(r) for r in cur.fetchall()]
+    rows = _rows_with_items(cur, cur.fetchall())
     conn.close()
     return jsonify(rows)
 
@@ -146,7 +189,7 @@ def solicitudes_pendientes():
     cur.execute(_select_base() + f"""
         WHERE NOT EXISTS (SELECT 1 FROM {SCHEMA}.actividades a2 WHERE a2.solicitud_id = s.id)
     """ + ORDER)
-    rows = [_row_to_dict(r) for r in cur.fetchall()]
+    rows = _rows_with_items(cur, cur.fetchall())
     conn.close()
     return jsonify(rows)
 
@@ -160,6 +203,6 @@ def listar_solicitudes():
         cur.execute(_select_base() + ORDER)
     else:
         cur.execute(_select_base() + " WHERE s.creado_por_grupo_id = %s " + ORDER, (user["grupo_id"],))
-    rows = [_row_to_dict(r) for r in cur.fetchall()]
+    rows = _rows_with_items(cur, cur.fetchall())
     conn.close()
     return jsonify(rows)

@@ -17,6 +17,7 @@ function nowLocal() {
 const FORM_VACIO = () => ({
   descripcion: "", solicitante_id: "", prioridad: "Normal",
   ubicacion: "", lat: null, lng: null, fecha_hora: nowLocal(),
+  items: [],
 });
 
 export default function ModuloSolicitudes({ onDataChange }) {
@@ -74,6 +75,7 @@ export default function ModuloSolicitudes({ onDataChange }) {
       lng: s.lng || null,
       fecha_hora: s.fecha_hora ? s.fecha_hora.slice(0, 16) : nowLocal(),
       solicitante_id: s.solicitante_id || "",
+      items: (s.items || []).map(i => ({ nombre: i.nombre, cantidad: i.cantidad })),
     });
   };
 
@@ -170,6 +172,9 @@ export default function ModuloSolicitudes({ onDataChange }) {
               />
             </Suspense>
           </label>
+
+          <TablaItems items={form.items || []}
+            onChange={items => setForm(p => ({ ...p, items }))} />
 
           <button type="submit" className="btn-primary">Guardar Solicitud</button>
         </form>
@@ -272,6 +277,27 @@ export default function ModuloSolicitudes({ onDataChange }) {
             {detalle.fecha_actualizacion && (
               <DetalleRow label="Última edición" value={new Date(detalle.fecha_actualizacion).toLocaleString("es-VE")} />
             )}
+            {detalle.items && detalle.items.length > 0 && (
+              <div style={{ marginTop: "0.75rem" }}>
+                <div className="detalle-label" style={{ marginBottom: "0.4rem" }}>Ítems solicitados</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ background: "#f3f4f6" }}>
+                      <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 700 }}>Nombre</th>
+                      <th style={{ textAlign: "center", padding: "6px 10px", fontWeight: 700, width: 90 }}>Cantidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalle.items.map((item, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <td style={{ padding: "6px 10px" }}>{item.nombre}</td>
+                        <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 700 }}>{item.cantidad}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {detalle.lat && (
               <div style={{ marginTop:"0.75rem" }}>
                 <MapaReadOnly lat={detalle.lat} lng={detalle.lng} />
@@ -332,6 +358,9 @@ export default function ModuloSolicitudes({ onDataChange }) {
                   />
                 </Suspense>
               </label>
+              <TablaItems items={editando.items || []}
+                onChange={items => setEditando(p => ({ ...p, items }))} />
+
               <div className="modal-actions">
                 <button type="submit" className="btn-primary">Guardar cambios</button>
                 <button type="button" className="btn-ghost" onClick={() => setEditando(null)}>Cancelar</button>
@@ -350,6 +379,60 @@ function DetalleRow({ label, value }) {
     <div className="detalle-row">
       <span className="detalle-label">{label}</span>
       <span className="detalle-value">{value}</span>
+    </div>
+  );
+}
+
+function TablaItems({ items, onChange }) {
+  const agregar = () => onChange([...items, { nombre: "", cantidad: 1 }]);
+  const actualizar = (i, campo, valor) => {
+    const copia = items.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it);
+    onChange(copia);
+  };
+  const eliminar = (i) => onChange(items.filter((_, idx) => idx !== i));
+
+  return (
+    <div style={{ marginTop: "0.75rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+        <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#374151" }}>Ítems requeridos</span>
+        <button type="button" className="btn-secondary" style={{ fontSize: "0.8rem", padding: "4px 12px" }}
+          onClick={agregar}>+ Agregar ítem</button>
+      </div>
+      {items.length === 0
+        ? <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>Sin ítems añadidos.</p>
+        : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+            <thead>
+              <tr style={{ background: "#f3f4f6" }}>
+                <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 700 }}>Nombre del ítem</th>
+                <th style={{ textAlign: "center", padding: "6px 10px", fontWeight: 700, width: 100 }}>Cantidad</th>
+                <th style={{ width: 36 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "4px 6px" }}>
+                    <input value={item.nombre} placeholder="Ej. Camillas"
+                      onChange={e => actualizar(i, "nombre", e.target.value)}
+                      style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 4, padding: "4px 8px", fontSize: "0.85rem" }} />
+                  </td>
+                  <td style={{ padding: "4px 6px" }}>
+                    <input type="number" min={1} value={item.cantidad}
+                      onChange={e => actualizar(i, "cantidad", parseInt(e.target.value) || 1)}
+                      style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 4, padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }} />
+                  </td>
+                  <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                    <button type="button" onClick={() => eliminar(i)}
+                      style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 4,
+                        width: 26, height: 26, cursor: "pointer", fontSize: "0.8rem", lineHeight: 1 }}>✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      }
     </div>
   );
 }
