@@ -418,8 +418,9 @@ function TablaItems({ items, onChange }) {
                       style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 4, padding: "4px 8px", fontSize: "0.85rem" }} />
                   </td>
                   <td style={{ padding: "4px 6px" }}>
-                    <input type="number" min={1} value={item.cantidad}
-                      onChange={e => actualizar(i, "cantidad", parseInt(e.target.value) || 1)}
+                    <input type="number" min={0} value={item.cantidad}
+                      onChange={e => actualizar(i, "cantidad", e.target.value === "" ? 0 : parseInt(e.target.value) || 0)}
+                      onFocus={e => { if (e.target.value === "0") e.target.select(); }}
                       style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 4, padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }} />
                   </td>
                   <td style={{ padding: "4px 6px", textAlign: "center" }}>
