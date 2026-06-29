@@ -47,7 +47,10 @@ def crear_miembro():
     if errores:
         return jsonify({"error": "Datos inválidos.", "campos": errores}), 400
 
-    grupo_id = data.get("grupo_id") if user["rol"] == "admin" else user["grupo_id"]
+    if user["rol"] == "admin":
+        grupo_ids = data.get("grupo_ids") or ([data["grupo_id"]] if data.get("grupo_id") else [])
+    else:
+        grupo_ids = [user["grupo_id"]] if user["grupo_id"] else []
 
     conn = get_connection()
     cur = conn.cursor()
@@ -69,11 +72,11 @@ def crear_miembro():
             return jsonify({"error": f"Ya existe un miembro registrado con la cédula {data.get('cedula')}."}), 409
         raise
 
-    if grupo_id:
+    for gid in grupo_ids:
         cur.execute("""
             INSERT INTO MesaDeContingencia.miembros_grupos (miembro_id, grupo_id)
             VALUES (%s, %s)
-        """, (new_id, grupo_id))
+        """, (new_id, int(gid)))
 
     conn.commit()
     conn.close()

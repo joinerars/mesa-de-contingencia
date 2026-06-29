@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { validarFormMiembro } from "../utils/validaciones";
 
 const CARGOS = ["Profesor", "Estudiante", "BR", "Auxiliar", "Voluntario"];
-const FORM_VACIO = { nombre: "", cedula: "", telefono: "", tlf_alternativo: "", cargo: "", email: "" };
+const FORM_VACIO = { nombre: "", cedula: "", telefono: "", tlf_alternativo: "", cargo: "", email: "", grupo_ids: [] };
 
 export default function ModuloMiembrosGrupos({ onDataChange }) {
   const { user } = useAuth();
@@ -50,6 +50,9 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
       setErrores(errs);
       setTocado({ nombre: true, cedula: true, telefono: true, tlf_alternativo: true, email: true, cargo: true });
       return;
+    }
+    if (isAdmin && (!form.grupo_ids || form.grupo_ids.length === 0)) {
+      flash("Selecciona al menos un grupo.", false); return;
     }
     try {
       await api.crearMiembro(form);
@@ -201,11 +204,26 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
             </Campo>
           </div>
           {isAdmin && (
-            <Campo label="Grupo de Trabajo *">
-              <select required value={form.grupo_id || ""} onChange={e => setForm(p => ({ ...p, grupo_id: e.target.value || null }))}>
-                <option value="">— Seleccionar grupo —</option>
-                {grupos.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-              </select>
+            <Campo label="Grupos de Trabajo *">
+              <div className="check-grid" style={{ marginTop: 4 }}>
+                {grupos.map(g => (
+                  <label key={g.id} className="check-item">
+                    <input type="checkbox"
+                      checked={(form.grupo_ids || []).includes(g.id)}
+                      onChange={e => {
+                        const ids = form.grupo_ids || [];
+                        setForm(p => ({
+                          ...p,
+                          grupo_ids: e.target.checked ? [...ids, g.id] : ids.filter(id => id !== g.id)
+                        }));
+                      }} />
+                    {g.nombre}
+                  </label>
+                ))}
+              </div>
+              {(form.grupo_ids || []).length === 0 && (
+                <span className="campo-error">Selecciona al menos un grupo.</span>
+              )}
             </Campo>
           )}
           <button type="submit" className="btn-primary">Registrar Miembro</button>
