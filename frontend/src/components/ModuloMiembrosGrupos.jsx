@@ -233,12 +233,12 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
           <div className="form-row">
             <Campo label="Teléfono principal *" error={tocado.telefono && errores.telefono} hint="0412-1234567">
               <input value={form.telefono} placeholder="0412-1234567"
-                onChange={e => cambiarCampo("telefono", e.target.value)} onBlur={() => marcarTocado("telefono")}
+                onChange={e => cambiarCampo("telefono", e.target.value.replace(/[^0-9\-]/g, ""))} onBlur={() => marcarTocado("telefono")}
                 className={tocado.telefono && errores.telefono ? "input-err" : ""} />
             </Campo>
             <Campo label="Teléfono alternativo" error={tocado.tlf_alternativo && errores.tlf_alternativo} hint="0212-5554321 (opcional)">
               <input value={form.tlf_alternativo} placeholder="0212-5554321"
-                onChange={e => cambiarCampo("tlf_alternativo", e.target.value)} onBlur={() => marcarTocado("tlf_alternativo")}
+                onChange={e => cambiarCampo("tlf_alternativo", e.target.value.replace(/[^0-9\-]/g, ""))} onBlur={() => marcarTocado("tlf_alternativo")}
                 className={tocado.tlf_alternativo && errores.tlf_alternativo ? "input-err" : ""} />
             </Campo>
           </div>
@@ -538,12 +538,12 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
               <div className="form-row">
                 <Campo label="Teléfono principal *">
                   <input required value={editandoMiembro.telefono || ""}
-                    onChange={e => setEditandoMiembro(p => ({ ...p, telefono: e.target.value }))}
+                    onChange={e => setEditandoMiembro(p => ({ ...p, telefono: e.target.value.replace(/[^0-9\-]/g, "") }))}
                     placeholder="0412-1234567" />
                 </Campo>
                 <Campo label="Teléfono alternativo">
                   <input value={editandoMiembro.tlf_alternativo || ""}
-                    onChange={e => setEditandoMiembro(p => ({ ...p, tlf_alternativo: e.target.value }))}
+                    onChange={e => setEditandoMiembro(p => ({ ...p, tlf_alternativo: e.target.value.replace(/[^0-9\-]/g, "") }))}
                     placeholder="Opcional" />
                 </Campo>
               </div>
