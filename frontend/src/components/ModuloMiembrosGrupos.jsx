@@ -167,7 +167,7 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
                 onChange={e => cambiarCampo("nombre", e.target.value)} onBlur={() => marcarTocado("nombre")}
                 className={tocado.nombre && errores.nombre ? "input-err" : ""} />
             </Campo>
-            <Campo label="N° de Cédula *" error={tocado.cedula && errores.cedula}>
+            <Campo label="N° de Cédula" error={tocado.cedula && errores.cedula}>
               <input value={form.cedula} placeholder="V-12345678"
                 onChange={e => cambiarCampo("cedula", e.target.value)} onBlur={() => marcarTocado("cedula")}
                 className={tocado.cedula && errores.cedula ? "input-err" : ""} />

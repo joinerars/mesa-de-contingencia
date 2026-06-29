@@ -51,17 +51,23 @@ def crear_miembro():
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
-        OUTPUT INSERTED.id
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (data["nombre"].strip(),
-          data.get("cedula") or None,
-          data.get("telefono") or None,
-          data.get("tlf_alternativo") or None,
-          data.get("cargo") or None,
-          data.get("email") or None))
-    new_id = cur.fetchone()[0]
+    try:
+        cur.execute("""
+            INSERT INTO MesaDeContingencia.miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
+            OUTPUT INSERTED.id
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (data["nombre"].strip(),
+              data.get("cedula") or None,
+              data.get("telefono") or None,
+              data.get("tlf_alternativo") or None,
+              data.get("cargo") or None,
+              data.get("email") or None))
+        new_id = cur.fetchone()[0]
+    except Exception as ex:
+        conn.close()
+        if "UQ_miembros_cedula" in str(ex) or "2601" in str(ex) or "2627" in str(ex):
+            return jsonify({"error": f"Ya existe un miembro registrado con la cédula {data.get('cedula')}."}), 409
+        raise
 
     if grupo_id:
         cur.execute("""

@@ -31,7 +31,7 @@ export function validarEmail(valor) {
 }
 
 export function validarCedula(valor) {
-  if (!valor || !valor.trim()) return "La cédula es obligatoria.";
+  if (!valor || !valor.trim()) return null; // opcional
   const limpio = valor.replace(/\s/g, "");
   if (!/^[VvEe]-?\d{6,8}$/.test(limpio))
     return "Debe iniciar con V o E. Ej: V-12345678.";

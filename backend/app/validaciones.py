@@ -40,8 +40,9 @@ def validar_miembro(data):
     errores = {}
     if not data.get("nombre", "").strip():
         errores["nombre"] = "El nombre es obligatorio."
-    e = validar_cedula(data.get("cedula"))
-    if e: errores["cedula"] = e
+    if data.get("cedula", "").strip():
+        e = validar_cedula(data.get("cedula"))
+        if e: errores["cedula"] = e
     if not data.get("telefono", "").strip():
         errores["telefono"] = "El teléfono principal es obligatorio."
     else:
