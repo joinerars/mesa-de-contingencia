@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+
+const MapaPicker = lazy(() => import("./MapaPicker"));
 
 const PRIORIDAD_COLOR = { Alta: "#dc2626", Normal: "#d97706", Baja: "#6b7280" };
 const PRIORIDAD_BG    = { Alta: "#fee2e2", Normal: "#fef3c7", Baja: "#f3f4f6" };
@@ -29,7 +31,7 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
   const [modalRapida,   setModalRapida]   = useState(null);
   const [creando,       setCreando]       = useState(false);
 
-  const FORM_RAPIDA = { descripcion: "", grupo_id: "", prioridad: "Normal", ubicacion: "", fecha_hora: "" };
+  const FORM_RAPIDA = { descripcion: "", grupo_id: "", prioridad: "Normal", ubicacion: "", lat: null, lng: null, fecha_hora: "" };
 
   const reload = async () => {
     const [acts, ms, gs] = await Promise.all([api.getActividades(), api.getMiembros(), api.getGrupos()]);
@@ -337,10 +339,13 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
                 </div>
               </label>
 
-              <label>Ubicación
-                <input value={modalRapida.ubicacion}
-                  onChange={e => setModalRapida(p => ({ ...p, ubicacion: e.target.value }))}
-                  placeholder="Ej. Edificio A, piso 3" />
+              <label>Ubicación — haz clic en el mapa o busca una dirección
+                <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
+                  <MapaPicker
+                    value={{ lat: modalRapida.lat, lng: modalRapida.lng, address: modalRapida.ubicacion }}
+                    onChange={({ lat, lng, address }) => setModalRapida(p => ({ ...p, lat, lng, ubicacion: address }))}
+                  />
+                </Suspense>
               </label>
 
               <label>Fecha y hora estimada
