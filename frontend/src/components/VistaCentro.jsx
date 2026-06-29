@@ -1,8 +1,6 @@
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-
-const MapaPicker = lazy(() => import("./MapaPicker"));
 
 const PRIORIDADES = ["Baja", "Normal", "Alta"];
 const PRIORIDAD_COLOR = { Alta: "#dc2626", Normal: "#d97706", Baja: "#6b7280" };
@@ -16,9 +14,12 @@ function nowLocal() {
   return d.toISOString().slice(0, 16);
 }
 
-const FORM_VACIO = () => ({
+const FORM_VACIO = (user) => ({
   descripcion: "", prioridad: "Normal",
-  ubicacion: "", lat: null, lng: null, fecha_hora: nowLocal(),
+  ubicacion: user?.centro_direccion || "",
+  lat: user?.centro_lat || null,
+  lng: user?.centro_lng || null,
+  fecha_hora: nowLocal(),
   items: [],
 });
 
@@ -26,7 +27,7 @@ export default function VistaCentro() {
   const { user } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [showForm, setShowForm]       = useState(false);
-  const [form, setForm]               = useState(FORM_VACIO());
+  const [form, setForm]               = useState(FORM_VACIO(user));
   const [editando, setEditando]       = useState(null);
   const [msg, setMsg]                 = useState(null);
   const [detalle, setDetalle]         = useState(null);
@@ -43,7 +44,7 @@ export default function VistaCentro() {
     try {
       await api.crearSolicitud(form);
       setShowForm(false);
-      setForm(FORM_VACIO());
+      setForm(FORM_VACIO(user));
       await reload();
       flash("Solicitud enviada correctamente.");
     } catch (err) { flash(err.message, false); }
@@ -133,14 +134,11 @@ export default function VistaCentro() {
                   onChange={e => f("fecha_hora", e.target.value)} />
               </label>
 
-              <label>Ubicación — haz clic en el mapa o busca una dirección
-                <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
-                  <MapaPicker
-                    value={{ lat: form.lat, lng: form.lng, address: form.ubicacion }}
-                    onChange={({ lat, lng, address }) => setForm(p => ({ ...p, lat, lng, ubicacion: address }))}
-                  />
-                </Suspense>
-              </label>
+              {form.ubicacion && (
+                <div style={{ fontSize: "0.82rem", color: "#374151", background: "#f0f6ff", border: "1px solid #c3d9ff", borderRadius: 8, padding: "0.5rem 0.75rem" }}>
+                  📍 <strong>Ubicación:</strong> {form.ubicacion}
+                </div>
+              )}
 
               <button type="submit" className="btn-primary">Enviar Solicitud</button>
             </form>
@@ -298,14 +296,11 @@ export default function VistaCentro() {
                     onChange={e => setEditando(p => ({ ...p, fecha_hora: e.target.value }))} />
                 </label>
 
-                <label>Ubicación — haz clic en el mapa o busca una dirección
-                  <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
-                    <MapaPicker
-                      value={{ lat: editando.lat, lng: editando.lng, address: editando.ubicacion }}
-                      onChange={({ lat, lng, address }) => setEditando(p => ({ ...p, lat, lng, ubicacion: address }))}
-                    />
-                  </Suspense>
-                </label>
+                {editando.ubicacion && (
+                  <div style={{ fontSize: "0.82rem", color: "#374151", background: "#f0f6ff", border: "1px solid #c3d9ff", borderRadius: 8, padding: "0.5rem 0.75rem" }}>
+                    📍 <strong>Ubicación:</strong> {editando.ubicacion}
+                  </div>
+                )}
 
                 <div className="modal-actions">
                   <button type="submit" className="btn-primary">Guardar cambios</button>

@@ -16,7 +16,7 @@ def login_user(username, password):
     cur = conn.cursor()
     cur.execute(f"""
         SELECT u.id, u.username, u.password_hash, u.rol, u.grupo_id, g.nombre,
-               u.centro_id, c.nombre
+               u.centro_id, c.nombre, c.lat, c.lng, c.direccion
         FROM {SCHEMA}.usuarios u
         LEFT JOIN {SCHEMA}.grupos_trabajo g ON g.id = u.grupo_id
         LEFT JOIN {SCHEMA}.centros_atencion c ON c.id = u.centro_id
@@ -31,6 +31,9 @@ def login_user(username, password):
         "id": row[0], "username": row[1], "rol": row[3],
         "grupo_id": row[4], "grupo_nombre": row[5],
         "centro_id": row[6], "centro_nombre": row[7],
+        "centro_lat": float(row[8]) if row[8] is not None else None,
+        "centro_lng": float(row[9]) if row[9] is not None else None,
+        "centro_direccion": row[10],
     }
     payload = {**user, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=TTL_HOURS)}
     token = jwt.encode(payload, SECRET, algorithm=ALGO)

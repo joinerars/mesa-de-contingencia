@@ -166,11 +166,11 @@ export default function ModuloCentros() {
               </label>
 
               <div style={{ marginBottom: "0.75rem" }}>
-                <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>Ubicación</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>Ubicación del centro</div>
                 <Suspense fallback={<div style={{ height: 220, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>Cargando mapa…</div>}>
                   <MapaPicker
-                    lat={modalForm.data.lat} lng={modalForm.data.lng}
-                    onChange={({ lat, lng }) => setModalForm(p => ({ ...p, data: { ...p.data, lat, lng } }))}
+                    value={{ lat: modalForm.data.lat, lng: modalForm.data.lng, address: modalForm.data.direccion || "" }}
+                    onChange={({ lat, lng, address }) => setModalForm(p => ({ ...p, data: { ...p.data, lat, lng, direccion: address } }))}
                   />
                 </Suspense>
               </div>
