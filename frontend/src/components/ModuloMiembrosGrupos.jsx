@@ -18,10 +18,10 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
   const [errores, setErrores] = useState({});
   const [tocado, setTocado] = useState({});
   const [editandoGrupo, setEditandoGrupo] = useState(null);
-  // usuario de acceso del grupo que se está editando
   const [usuarioGrupo,  setUsuarioGrupo]  = useState(null);
   const [nuevoUser,     setNuevoUser]     = useState({ username: "", password: "", password2: "" });
   const [nuevaPass,     setNuevaPass]     = useState("");
+  const [nuevoGrupo,    setNuevoGrupo]    = useState(null); // null = cerrado, {} = abierto
 
   const reload = async () => {
     const [m, g] = await Promise.all([api.getMiembros(), api.getGrupos()]);
@@ -105,6 +105,25 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
       await api.cambiarPasswordGrupo(editandoGrupo.id, { password: nuevaPass });
       setNuevaPass("");
       flash("Contraseña actualizada.");
+    } catch (err) { flash(err.message, false); }
+  };
+
+  const submitNuevoGrupo = async (e) => {
+    e.preventDefault();
+    try {
+      await api.crearGrupo(nuevoGrupo);
+      setNuevoGrupo(null);
+      await reload(); onDataChange();
+      flash("Grupo creado.");
+    } catch (err) { flash(err.message, false); }
+  };
+
+  const eliminarGrupo = async (g) => {
+    if (!confirm(`¿Eliminar el grupo "${g.nombre}"? Esta acción no se puede deshacer.`)) return;
+    try {
+      await api.eliminarGrupo(g.id);
+      await reload(); onDataChange();
+      flash(`Grupo "${g.nombre}" eliminado.`);
     } catch (err) { flash(err.message, false); }
   };
 
@@ -224,14 +243,46 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
       {/* ── Lista grupos (solo admin) ── */}
       {tab === "grupos" && isAdmin && (
         <div className="ver-registros">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <button className="btn-primary" onClick={() => setNuevoGrupo({ nombre: "", descripcion: "" })}>
+              + Nuevo Grupo
+            </button>
+          </div>
+
+          {/* Modal crear grupo */}
+          {nuevoGrupo && (
+            <div className="overlay" onClick={() => setNuevoGrupo(null)}>
+              <div className="modal" onClick={e => e.stopPropagation()}>
+                <h3>Nuevo Grupo de Trabajo</h3>
+                <form onSubmit={submitNuevoGrupo} className="form" style={{ marginTop: "0.75rem" }}>
+                  <label>Nombre del Grupo *
+                    <input required autoFocus value={nuevoGrupo.nombre}
+                      onChange={e => setNuevoGrupo(p => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Ej. Grupo Logística" />
+                  </label>
+                  <label>Descripción
+                    <input value={nuevoGrupo.descripcion}
+                      onChange={e => setNuevoGrupo(p => ({ ...p, descripcion: e.target.value }))}
+                      placeholder="Opcional" />
+                  </label>
+                  <div className="modal-actions">
+                    <button type="submit" className="btn-primary">Crear Grupo</button>
+                    <button type="button" className="btn-ghost" onClick={() => setNuevoGrupo(null)}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
           <div className="grupo-cards">
             {grupos.map(g => (
               <div key={g.id} className="grupo-card">
                 <div className="grupo-card-header">
                   <span className="grupo-nombre">{g.nombre}</span>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                     <span className="grupo-badge">{g.miembros.length} miembro{g.miembros.length !== 1 ? "s" : ""}</span>
-                    <button className="btn-edit-grupo" onClick={() => abrirEdicion(g)}>✏️ Editar</button>
+                    <button className="btn-edit-grupo" onClick={() => abrirEdicion(g)}>✏️</button>
+                    <button className="btn-edit-grupo" style={{ background: "#dc2626" }} onClick={() => eliminarGrupo(g)} title="Eliminar grupo">🗑️</button>
                   </div>
                 </div>
                 {g.descripcion && <p className="grupo-desc">{g.descripcion}</p>}

@@ -52,6 +52,8 @@ export const api = {
   crearMiembro: (d) => req("POST", "/miembros", d),
 
   getGrupos: () => req("GET", "/grupos"),
+  crearGrupo: (d) => req("POST", "/grupos", d),
+  eliminarGrupo: (id) => req("DELETE", `/grupos/${id}`),
   editarGrupo: (id, d) => req("PUT", `/grupos/${id}`, d),
   getUsuarioGrupo: (id) => req("GET", `/grupos/${id}/usuario`),
   crearUsuarioGrupo: (id, d) => req("POST", `/grupos/${id}/usuario`, d),

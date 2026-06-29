@@ -62,6 +62,45 @@ def listar_grupos():
     conn.close()
     return jsonify(list(grupos.values()))
 
+@main_bp.post("/api/grupos")
+@require_admin
+def crear_grupo():
+    data = request.get_json() or {}
+    nombre = data.get("nombre", "").strip()
+    if not nombre:
+        return jsonify({"error": "nombre requerido"}), 400
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO MesaDeContingencia.grupos_trabajo (nombre, descripcion)
+        OUTPUT INSERTED.id VALUES (%s, %s)
+    """, (nombre, data.get("descripcion", "").strip() or None))
+    new_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return jsonify({"id": new_id, "nombre": nombre, "descripcion": data.get("descripcion"), "miembros": [], "representante": None}), 201
+
+
+@main_bp.delete("/api/grupos/<int:grupo_id>")
+@require_admin
+def eliminar_grupo(grupo_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM MesaDeContingencia.actividades WHERE grupo_id = %s", (grupo_id,))
+    if cur.fetchone()[0] > 0:
+        conn.close()
+        return jsonify({"error": "Este grupo tiene actividades asignadas y no puede eliminarse"}), 409
+    cur.execute("DELETE FROM MesaDeContingencia.usuarios WHERE grupo_id = %s AND rol = 'grupo'", (grupo_id,))
+    cur.execute("DELETE FROM MesaDeContingencia.miembros_grupos WHERE grupo_id = %s", (grupo_id,))
+    cur.execute("DELETE FROM MesaDeContingencia.grupos_trabajo WHERE id = %s", (grupo_id,))
+    if cur.rowcount == 0:
+        conn.close()
+        return jsonify({"error": "Grupo no encontrado"}), 404
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @main_bp.put("/api/grupos/<int:grupo_id>")
 @require_admin
 def editar_grupo(grupo_id):
