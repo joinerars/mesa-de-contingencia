@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection
+from ..db import get_connection, SCHEMA
 from ..auth import require_auth, get_current_user
 
 @main_bp.get("/api/actividades/<int:act_id>/comentarios")
@@ -8,9 +8,9 @@ from ..auth import require_auth, get_current_user
 def get_comentarios(act_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT id, autor_username, autor_rol, grupo_id, texto, fecha_creacion
-        FROM MesaDeContingencia.actividad_comentarios
+        FROM {SCHEMA}.actividad_comentarios
         WHERE actividad_id = %s
         ORDER BY fecha_creacion ASC
     """, (act_id,))
@@ -32,15 +32,15 @@ def crear_comentario(act_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", (act_id,))
+    cur.execute(f"SELECT grupo_id FROM {SCHEMA}.actividades WHERE id = %s", (act_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "Actividad no encontrada"}), 404
     grupo_actividad_id = row[0]
 
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.actividad_comentarios
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.actividad_comentarios
             (actividad_id, autor_username, autor_rol, grupo_id, texto)
         OUTPUT INSERTED.id, INSERTED.fecha_creacion
         VALUES (%s, %s, %s, %s, %s)
@@ -51,15 +51,15 @@ def crear_comentario(act_id):
     autor_label = user["username"]
     notif_texto = f"💬 {autor_label}: {texto[:120]}"
 
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.notificaciones
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.notificaciones
             (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
         VALUES ('admin', NULL, %s, %s, %s)
     """, (act_id, nuevo_id, notif_texto))
 
     if user["rol"] == "admin":
-        cur.execute("""
-            INSERT INTO MesaDeContingencia.notificaciones
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.notificaciones
                 (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
             VALUES ('grupo', %s, %s, %s, %s)
         """, (grupo_actividad_id, act_id, nuevo_id, notif_texto))
@@ -77,16 +77,16 @@ def get_notificaciones():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "admin":
-        cur.execute("""
+        cur.execute(f"""
             SELECT id, actividad_id, texto, leida, fecha_creacion
-            FROM MesaDeContingencia.notificaciones
+            FROM {SCHEMA}.notificaciones
             WHERE para_rol = 'admin'
             ORDER BY fecha_creacion DESC
         """)
     else:
-        cur.execute("""
+        cur.execute(f"""
             SELECT id, actividad_id, texto, leida, fecha_creacion
-            FROM MesaDeContingencia.notificaciones
+            FROM {SCHEMA}.notificaciones
             WHERE para_rol = 'grupo' AND para_grupo_id = %s
             ORDER BY fecha_creacion DESC
         """, (user["grupo_id"],))
@@ -101,7 +101,7 @@ def get_notificaciones():
 def marcar_leida(nid):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE MesaDeContingencia.notificaciones SET leida = 1 WHERE id = %s", (nid,))
+    cur.execute(f"UPDATE {SCHEMA}.notificaciones SET leida = 1 WHERE id = %s", (nid,))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -114,10 +114,10 @@ def leer_todas():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "admin":
-        cur.execute("UPDATE MesaDeContingencia.notificaciones SET leida = 1 WHERE para_rol = 'admin'")
+        cur.execute(f"UPDATE {SCHEMA}.notificaciones SET leida = 1 WHERE para_rol = 'admin'")
     else:
-        cur.execute("""
-            UPDATE MesaDeContingencia.notificaciones SET leida = 1
+        cur.execute(f"""
+            UPDATE {SCHEMA}.notificaciones SET leida = 1
             WHERE para_rol = 'grupo' AND para_grupo_id = %s
         """, (user["grupo_id"],))
     conn.commit()

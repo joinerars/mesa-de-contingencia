@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection
+from ..db import get_connection, SCHEMA
 from ..auth import require_auth, require_admin, get_current_user
 from datetime import datetime
 
@@ -30,17 +30,19 @@ def _row_to_dict(r):
         "solicitante_email": r[14],
     }
 
-SELECT_BASE = """
+def _select_base():
+    return f"""
     SELECT s.id, s.descripcion, s.fecha_creacion,
            g.id, COALESCE(g.nombre, c.nombre), a.estado,
            s.ubicacion, s.fecha_hora, s.prioridad, s.lat, s.lng,
            s.solicitante_id, m.nombre, m.telefono, m.email
-    FROM MesaDeContingencia.solicitudes s
-    LEFT JOIN MesaDeContingencia.grupos_trabajo g   ON g.id = s.creado_por_grupo_id
-    LEFT JOIN MesaDeContingencia.centros_atencion c ON c.id = s.creado_por_centro_id
-    LEFT JOIN MesaDeContingencia.actividades a      ON a.solicitud_id = s.id
-    LEFT JOIN MesaDeContingencia.miembros m         ON m.id = s.solicitante_id
+    FROM {SCHEMA}.solicitudes s
+    LEFT JOIN {SCHEMA}.grupos_trabajo g   ON g.id = s.creado_por_grupo_id
+    LEFT JOIN {SCHEMA}.centros_atencion c ON c.id = s.creado_por_centro_id
+    LEFT JOIN {SCHEMA}.actividades a      ON a.solicitud_id = s.id
+    LEFT JOIN {SCHEMA}.miembros m         ON m.id = s.solicitante_id
 """
+
 ORDER = """ORDER BY
     CASE s.prioridad WHEN 'Alta' THEN 1 WHEN 'Normal' THEN 2 ELSE 3 END,
     s.fecha_creacion DESC"""
@@ -60,8 +62,8 @@ def crear_solicitud():
     centro_id = user["centro_id"] if user["rol"] == "centro" else None
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.solicitudes
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.solicitudes
             (descripcion, creado_por_grupo_id, creado_por_centro_id, ubicacion, fecha_hora,
              prioridad, lat, lng, solicitante_id)
         OUTPUT INSERTED.id, INSERTED.fecha_creacion
@@ -78,15 +80,12 @@ def crear_solicitud():
 
 @main_bp.get("/api/solicitudes/mis-centro")
 def solicitudes_centro():
-    from ..auth import require_auth
-    from flask import g as flask_g
     user = get_current_user()
     if not user or user["rol"] != "centro":
-        from flask import jsonify as _j
-        return _j({"error": "Acceso denegado"}), 403
+        return jsonify({"error": "Acceso denegado"}), 403
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(SELECT_BASE + " WHERE s.creado_por_centro_id = %s " + ORDER, (user["centro_id"],))
+    cur.execute(_select_base() + " WHERE s.creado_por_centro_id = %s " + ORDER, (user["centro_id"],))
     rows = [_row_to_dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)
@@ -97,8 +96,8 @@ def solicitudes_centro():
 def solicitudes_pendientes():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(SELECT_BASE + """
-        WHERE NOT EXISTS (SELECT 1 FROM MesaDeContingencia.actividades a2 WHERE a2.solicitud_id = s.id)
+    cur.execute(_select_base() + f"""
+        WHERE NOT EXISTS (SELECT 1 FROM {SCHEMA}.actividades a2 WHERE a2.solicitud_id = s.id)
     """ + ORDER)
     rows = [_row_to_dict(r) for r in cur.fetchall()]
     conn.close()
@@ -111,9 +110,9 @@ def listar_solicitudes():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "admin":
-        cur.execute(SELECT_BASE + ORDER)
+        cur.execute(_select_base() + ORDER)
     else:
-        cur.execute(SELECT_BASE + " WHERE s.creado_por_grupo_id = %s " + ORDER, (user["grupo_id"],))
+        cur.execute(_select_base() + " WHERE s.creado_por_grupo_id = %s " + ORDER, (user["grupo_id"],))
     rows = [_row_to_dict(r) for r in cur.fetchall()]
     conn.close()
     return jsonify(rows)

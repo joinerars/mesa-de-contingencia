@@ -4,7 +4,7 @@ import datetime
 from functools import wraps
 from flask import request, jsonify
 from werkzeug.security import check_password_hash
-from .db import get_connection
+from .db import get_connection, SCHEMA
 
 SECRET = os.getenv("JWT_SECRET", "mesa-contingencia-secret-key-2026")
 ALGO = "HS256"
@@ -14,12 +14,12 @@ TTL_HOURS = 8
 def login_user(username, password):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT u.id, u.username, u.password_hash, u.rol, u.grupo_id, g.nombre,
                u.centro_id, c.nombre
-        FROM MesaDeContingencia.usuarios u
-        LEFT JOIN MesaDeContingencia.grupos_trabajo g ON g.id = u.grupo_id
-        LEFT JOIN MesaDeContingencia.centros_atencion c ON c.id = u.centro_id
+        FROM {SCHEMA}.usuarios u
+        LEFT JOIN {SCHEMA}.grupos_trabajo g ON g.id = u.grupo_id
+        LEFT JOIN {SCHEMA}.centros_atencion c ON c.id = u.centro_id
         WHERE u.username = %s AND u.activo = 1
     """, (username,))
     row = cur.fetchone()

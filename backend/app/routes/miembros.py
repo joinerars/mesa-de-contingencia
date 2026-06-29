@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection
+from ..db import get_connection, SCHEMA
 from ..validaciones import validar_miembro, normalizar_cedula
 from ..auth import require_auth, get_current_user
 
@@ -11,21 +11,21 @@ def listar_miembros():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "admin":
-        cur.execute("""
+        cur.execute(f"""
             SELECT m.id, m.nombre, m.cedula, m.telefono, m.tlf_alternativo, m.cargo, m.email,
                    g.id, g.nombre
-            FROM MesaDeContingencia.miembros m
-            LEFT JOIN MesaDeContingencia.miembros_grupos mg ON mg.miembro_id = m.id
-            LEFT JOIN MesaDeContingencia.grupos_trabajo g ON g.id = mg.grupo_id
+            FROM {SCHEMA}.miembros m
+            LEFT JOIN {SCHEMA}.miembros_grupos mg ON mg.miembro_id = m.id
+            LEFT JOIN {SCHEMA}.grupos_trabajo g ON g.id = mg.grupo_id
             ORDER BY m.nombre
         """)
     else:
-        cur.execute("""
+        cur.execute(f"""
             SELECT m.id, m.nombre, m.cedula, m.telefono, m.tlf_alternativo, m.cargo, m.email,
                    g.id, g.nombre
-            FROM MesaDeContingencia.miembros m
-            JOIN MesaDeContingencia.miembros_grupos mg ON mg.miembro_id = m.id
-            JOIN MesaDeContingencia.grupos_trabajo g ON g.id = mg.grupo_id
+            FROM {SCHEMA}.miembros m
+            JOIN {SCHEMA}.miembros_grupos mg ON mg.miembro_id = m.id
+            JOIN {SCHEMA}.grupos_trabajo g ON g.id = mg.grupo_id
             WHERE mg.grupo_id = %s
             ORDER BY m.nombre
         """, (user["grupo_id"],))
@@ -55,8 +55,8 @@ def crear_miembro():
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("""
-            INSERT INTO MesaDeContingencia.miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
             OUTPUT INSERTED.id
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (data["nombre"].strip(),
@@ -73,8 +73,8 @@ def crear_miembro():
         raise
 
     for gid in grupo_ids:
-        cur.execute("""
-            INSERT INTO MesaDeContingencia.miembros_grupos (miembro_id, grupo_id)
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.miembros_grupos (miembro_id, grupo_id)
             VALUES (%s, %s)
         """, (new_id, int(gid)))
 

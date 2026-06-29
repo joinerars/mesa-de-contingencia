@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+SCHEMA = os.getenv("DB_SCHEMA", "MesaDeContingencia")
+
 def get_connection():
     return pymssql.connect(
         server=os.getenv("DB_SERVER"),

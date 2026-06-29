@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection
+from ..db import get_connection, SCHEMA
 from ..auth import require_auth, require_admin, get_current_user
 
 ESTADOS = ["Por ejecutar", "En ejecución", "Ejecutado"]
@@ -19,17 +19,17 @@ def crear_actividad():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "grupo":
-        cur.execute("SELECT creado_por_grupo_id FROM MesaDeContingencia.solicitudes WHERE id = %s", (solicitud_id,))
+        cur.execute(f"SELECT creado_por_grupo_id FROM {SCHEMA}.solicitudes WHERE id = %s", (solicitud_id,))
         row = cur.fetchone()
         if not row or row[0] != user["grupo_id"]:
             conn.close()
             return jsonify({"error": "Solo puedes autoasignarte tus propias solicitudes"}), 403
-    cur.execute("SELECT id FROM MesaDeContingencia.actividades WHERE solicitud_id = %s", (solicitud_id,))
+    cur.execute(f"SELECT id FROM {SCHEMA}.actividades WHERE solicitud_id = %s", (solicitud_id,))
     if cur.fetchone():
         conn.close()
         return jsonify({"error": "Esta solicitud ya fue asignada"}), 409
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.actividades (solicitud_id, grupo_id, estado)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.actividades (solicitud_id, grupo_id, estado)
         OUTPUT INSERTED.id VALUES (%s, %s, 'Por ejecutar')
     """, (solicitud_id, grupo_id))
     new_id = cur.fetchone()[0]
@@ -66,8 +66,8 @@ def crear_actividad_rapida():
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.solicitudes
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.solicitudes
             (descripcion, creado_por_grupo_id, ubicacion, fecha_hora, prioridad, lat, lng, solicitante_id)
         OUTPUT INSERTED.id
         VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
@@ -78,8 +78,8 @@ def crear_actividad_rapida():
           data.get("lat") or None, data.get("lng") or None))
     solicitud_id = cur.fetchone()[0]
 
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.actividades (solicitud_id, grupo_id, estado)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.actividades (solicitud_id, grupo_id, estado)
         OUTPUT INSERTED.id VALUES (%s, %s, 'Por ejecutar')
     """, (solicitud_id, grupo_id))
     act_id = cur.fetchone()[0]
@@ -99,13 +99,13 @@ def actualizar_actividad(act_id):
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "grupo":
-        cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", (act_id,))
+        cur.execute(f"SELECT grupo_id FROM {SCHEMA}.actividades WHERE id = %s", (act_id,))
         row = cur.fetchone()
         if not row or row[0] != user["grupo_id"]:
             conn.close()
             return jsonify({"error": "Acceso denegado"}), 403
-    cur.execute("""
-        UPDATE MesaDeContingencia.actividades
+    cur.execute(f"""
+        UPDATE {SCHEMA}.actividades
         SET estado = %s, fecha_actualizacion = GETDATE() WHERE id = %s
     """, (nuevo_estado, act_id))
     conn.commit()
@@ -122,7 +122,7 @@ def set_miembros_actividad(act_id):
     miembro_ids = data.get("miembro_ids", [])
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT grupo_id FROM MesaDeContingencia.actividades WHERE id = %s", (act_id,))
+    cur.execute(f"SELECT grupo_id FROM {SCHEMA}.actividades WHERE id = %s", (act_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -130,9 +130,9 @@ def set_miembros_actividad(act_id):
     if user["rol"] == "grupo" and row[0] != user["grupo_id"]:
         conn.close()
         return jsonify({"error": "Acceso denegado"}), 403
-    cur.execute("DELETE FROM MesaDeContingencia.actividad_miembros WHERE actividad_id = %s", (act_id,))
+    cur.execute(f"DELETE FROM {SCHEMA}.actividad_miembros WHERE actividad_id = %s", (act_id,))
     for mid in miembro_ids:
-        cur.execute("INSERT INTO MesaDeContingencia.actividad_miembros (actividad_id, miembro_id) VALUES (%s, %s)", (act_id, mid))
+        cur.execute(f"INSERT INTO {SCHEMA}.actividad_miembros (actividad_id, miembro_id) VALUES (%s, %s)", (act_id, mid))
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "miembro_ids": miembro_ids})
@@ -143,16 +143,16 @@ def listar_actividades():
     user = get_current_user()
     conn = get_connection()
     cur = conn.cursor()
-    base = """
+    base = f"""
         SELECT a.id, a.estado, a.fecha_asignacion, a.fecha_actualizacion,
                s.id, s.descripcion, s.ubicacion, s.fecha_hora, s.prioridad, s.lat, s.lng,
                ms.nombre, ms.telefono, ms.email,
                g.id, g.nombre, m.nombre AS rep_nombre
-        FROM MesaDeContingencia.actividades a
-        JOIN MesaDeContingencia.solicitudes s ON s.id = a.solicitud_id
-        JOIN MesaDeContingencia.grupos_trabajo g ON g.id = a.grupo_id
-        LEFT JOIN MesaDeContingencia.miembros m  ON m.id  = g.representante_principal_id
-        LEFT JOIN MesaDeContingencia.miembros ms ON ms.id = s.solicitante_id
+        FROM {SCHEMA}.actividades a
+        JOIN {SCHEMA}.solicitudes s ON s.id = a.solicitud_id
+        JOIN {SCHEMA}.grupos_trabajo g ON g.id = a.grupo_id
+        LEFT JOIN {SCHEMA}.miembros m  ON m.id  = g.representante_principal_id
+        LEFT JOIN {SCHEMA}.miembros ms ON ms.id = s.solicitante_id
     """
     if user["rol"] == "grupo":
         cur.execute(base + " WHERE a.grupo_id = %s ORDER BY a.fecha_actualizacion DESC", (user["grupo_id"],))
@@ -176,12 +176,12 @@ def listar_actividades():
     } for r in cur.fetchall()}
 
     if actividades:
-        cur.execute("""
+        cur.execute(f"""
             SELECT am.actividad_id, m.id, m.nombre, m.cargo
-            FROM MesaDeContingencia.actividad_miembros am
-            JOIN MesaDeContingencia.miembros m ON m.id = am.miembro_id
-            WHERE am.actividad_id IN ({})
-        """.format(",".join(str(k) for k in actividades)))
+            FROM {SCHEMA}.actividad_miembros am
+            JOIN {SCHEMA}.miembros m ON m.id = am.miembro_id
+            WHERE am.actividad_id IN ({",".join(str(k) for k in actividades)})
+        """)
         for r in cur.fetchall():
             if r[0] in actividades:
                 actividades[r[0]]["miembros"].append({"id": r[1], "nombre": r[2], "cargo": r[3]})

@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection
+from ..db import get_connection, SCHEMA
 from ..auth import require_admin, get_current_user
 from werkzeug.security import generate_password_hash
 
@@ -10,11 +10,11 @@ from werkzeug.security import generate_password_hash
 def listar_centros():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT c.id, c.nombre, c.descripcion, c.activo,
                u.id, u.username, u.activo
-        FROM MesaDeContingencia.centros_atencion c
-        LEFT JOIN MesaDeContingencia.usuarios u ON u.centro_id = c.id AND u.rol = 'centro'
+        FROM {SCHEMA}.centros_atencion c
+        LEFT JOIN {SCHEMA}.usuarios u ON u.centro_id = c.id AND u.rol = 'centro'
         ORDER BY c.nombre
     """)
     rows = []
@@ -36,8 +36,8 @@ def crear_centro():
         return jsonify({"error": "nombre requerido"}), 400
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.centros_atencion (nombre, descripcion)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.centros_atencion (nombre, descripcion)
         OUTPUT INSERTED.id VALUES (%s, %s)
     """, (nombre, (data.get("descripcion") or "").strip() or None))
     new_id = cur.fetchone()[0]
@@ -55,8 +55,8 @@ def editar_centro(centro_id):
         return jsonify({"error": "nombre requerido"}), 400
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        UPDATE MesaDeContingencia.centros_atencion
+    cur.execute(f"""
+        UPDATE {SCHEMA}.centros_atencion
         SET nombre=%s, descripcion=%s WHERE id=%s
     """, (nombre, (data.get("descripcion") or "").strip() or None, centro_id))
     if cur.rowcount == 0:
@@ -72,12 +72,12 @@ def editar_centro(centro_id):
 def eliminar_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM MesaDeContingencia.solicitudes WHERE creado_por_centro_id=%s", (centro_id,))
+    cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.solicitudes WHERE creado_por_centro_id=%s", (centro_id,))
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Este centro tiene solicitudes registradas y no puede eliminarse"}), 409
-    cur.execute("DELETE FROM MesaDeContingencia.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
-    cur.execute("DELETE FROM MesaDeContingencia.centros_atencion WHERE id=%s", (centro_id,))
+    cur.execute(f"DELETE FROM {SCHEMA}.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
+    cur.execute(f"DELETE FROM {SCHEMA}.centros_atencion WHERE id=%s", (centro_id,))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Centro no encontrado"}), 404
@@ -91,8 +91,8 @@ def eliminar_centro(centro_id):
 def get_usuario_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT id, username, activo FROM MesaDeContingencia.usuarios
+    cur.execute(f"""
+        SELECT id, username, activo FROM {SCHEMA}.usuarios
         WHERE centro_id=%s AND rol='centro'
     """, (centro_id,))
     row = cur.fetchone()
@@ -114,21 +114,21 @@ def crear_usuario_centro(centro_id):
         return jsonify({"error": "La contraseña debe tener al menos 6 caracteres"}), 400
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id FROM MesaDeContingencia.centros_atencion WHERE id=%s", (centro_id,))
+    cur.execute(f"SELECT id FROM {SCHEMA}.centros_atencion WHERE id=%s", (centro_id,))
     if not cur.fetchone():
         conn.close()
         return jsonify({"error": "Centro no encontrado"}), 404
-    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE username=%s", (username,))
+    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE username=%s", (username,))
     if cur.fetchone():
         conn.close()
         return jsonify({"error": f"El usuario '{username}' ya existe"}), 409
-    cur.execute("SELECT id FROM MesaDeContingencia.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
+    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
     if cur.fetchone():
         conn.close()
         return jsonify({"error": "Este centro ya tiene usuario asignado"}), 409
     h = generate_password_hash(password)
-    cur.execute("""
-        INSERT INTO MesaDeContingencia.usuarios (username, password_hash, rol, centro_id, activo)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.usuarios (username, password_hash, rol, centro_id, activo)
         OUTPUT INSERTED.id VALUES (%s, %s, 'centro', %s, 1)
     """, (username, h, centro_id))
     new_id = cur.fetchone()[0]
@@ -147,8 +147,8 @@ def cambiar_password_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
     h = generate_password_hash(password)
-    cur.execute("""
-        UPDATE MesaDeContingencia.usuarios SET password_hash=%s
+    cur.execute(f"""
+        UPDATE {SCHEMA}.usuarios SET password_hash=%s
         WHERE centro_id=%s AND rol='centro'
     """, (h, centro_id))
     if cur.rowcount == 0:
