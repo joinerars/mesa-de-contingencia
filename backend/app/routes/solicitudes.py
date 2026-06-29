@@ -28,6 +28,7 @@ def _row_to_dict(r):
         "solicitante_nombre": r[12],
         "solicitante_telefono": r[13],
         "solicitante_email": r[14],
+        "fecha_actualizacion": str(r[15]) if r[15] else None,
     }
 
 def _select_base():
@@ -35,7 +36,8 @@ def _select_base():
     SELECT s.id, s.descripcion, s.fecha_creacion,
            g.id, COALESCE(g.nombre, c.nombre), a.estado,
            s.ubicacion, s.fecha_hora, s.prioridad, s.lat, s.lng,
-           s.solicitante_id, m.nombre, m.telefono, m.email
+           s.solicitante_id, m.nombre, m.telefono, m.email,
+           s.fecha_actualizacion
     FROM {SCHEMA}.solicitudes s
     LEFT JOIN {SCHEMA}.grupos_trabajo g   ON g.id = s.creado_por_grupo_id
     LEFT JOIN {SCHEMA}.centros_atencion c ON c.id = s.creado_por_centro_id
@@ -77,6 +79,51 @@ def crear_solicitud():
     conn.commit()
     conn.close()
     return jsonify({"id": row[0], "descripcion": descripcion, "fecha_creacion": str(row[1])}), 201
+
+@main_bp.put("/api/solicitudes/<int:sol_id>")
+@require_auth
+def editar_solicitud(sol_id):
+    user = get_current_user()
+    data = request.get_json() or {}
+    descripcion = data.get("descripcion", "").strip()
+    if not descripcion:
+        return jsonify({"error": "La descripción es obligatoria"}), 400
+    prioridad = data.get("prioridad", "Normal")
+    if prioridad not in PRIORIDADES:
+        return jsonify({"error": f"Prioridad inválida"}), 400
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Verificar propiedad
+    cur.execute(f"""
+        SELECT creado_por_grupo_id, creado_por_centro_id FROM {SCHEMA}.solicitudes WHERE id = %s
+    """, (sol_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Solicitud no encontrada"}), 404
+    if user["rol"] == "grupo" and row[0] != user["grupo_id"]:
+        conn.close()
+        return jsonify({"error": "Acceso denegado"}), 403
+    if user["rol"] == "centro" and row[1] != user["centro_id"]:
+        conn.close()
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    cur.execute(f"""
+        UPDATE {SCHEMA}.solicitudes
+        SET descripcion=%s, prioridad=%s, ubicacion=%s, fecha_hora=%s,
+            lat=%s, lng=%s, solicitante_id=%s, fecha_actualizacion=GETDATE()
+        WHERE id=%s
+    """, (descripcion, prioridad,
+          data.get("ubicacion") or None, _parse_fecha(data.get("fecha_hora")),
+          data.get("lat"), data.get("lng"),
+          data.get("solicitante_id") or None,
+          sol_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
 
 @main_bp.get("/api/solicitudes/mis-centro")
 def solicitudes_centro():

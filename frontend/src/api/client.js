@@ -72,6 +72,7 @@ export const api = {
   getSolicitudesPendientes: () => req("GET", "/solicitudes/pendientes"),
   getSolicitudes: () => req("GET", "/solicitudes"),
   crearSolicitud: (d) => req("POST", "/solicitudes", d),
+  editarSolicitud: (id, d) => req("PUT", `/solicitudes/${id}`, d),
 
   getActividades: () => req("GET", "/actividades"),
   crearActividad: (d) => req("POST", "/actividades", d),

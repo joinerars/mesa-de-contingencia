@@ -34,6 +34,7 @@ export default function ModuloSolicitudes({ onDataChange }) {
   const [msg,            setMsg]            = useState(null);
   const [autoasignando,  setAutoasignando]  = useState({});
   const [detalle,        setDetalle]        = useState(null);
+  const [editando,       setEditando]       = useState(null);
 
   const reload = async () => {
     const [ms] = await Promise.all([api.getMiembros()]);
@@ -60,6 +61,30 @@ export default function ModuloSolicitudes({ onDataChange }) {
       setShowForm(false);
       await reload(); onDataChange();
       flash("Solicitud registrada.");
+    } catch (err) { flash(err.message, false); }
+  };
+
+  const abrirEditar = (s) => {
+    setEditando({
+      id: s.id,
+      descripcion: s.descripcion || "",
+      prioridad: s.prioridad || "Normal",
+      ubicacion: s.ubicacion || "",
+      lat: s.lat || null,
+      lng: s.lng || null,
+      fecha_hora: s.fecha_hora ? s.fecha_hora.slice(0, 16) : nowLocal(),
+      solicitante_id: s.solicitante_id || "",
+    });
+  };
+
+  const submitEditar = async (e) => {
+    e.preventDefault();
+    if (!editando.descripcion.trim()) return flash("La descripción es obligatoria.", false);
+    try {
+      await api.editarSolicitud(editando.id, editando);
+      setEditando(null);
+      await reload(); onDataChange();
+      flash("Solicitud actualizada.");
     } catch (err) { flash(err.message, false); }
   };
 
@@ -173,11 +198,17 @@ export default function ModuloSolicitudes({ onDataChange }) {
                     {s.solicitante_nombre && <span>👤 {s.solicitante_nombre}</span>}
                     {s.ubicacion && <span>📍 {s.ubicacion.slice(0, 60)}{s.ubicacion.length > 60 ? "…" : ""}</span>}
                     {s.fecha_hora && <span>🕐 {new Date(s.fecha_hora).toLocaleString("es-VE")}</span>}
-                    <span className="date">{new Date(s.fecha_creacion).toLocaleDateString("es-VE")}</span>
+                    <span className="date">Creada: {new Date(s.fecha_creacion).toLocaleDateString("es-VE")}</span>
+                    {s.fecha_actualizacion && (
+                      <span className="date" style={{ color: "#d97706" }}>
+                        ✏️ Actualizada: {new Date(s.fecha_actualizacion).toLocaleString("es-VE")}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:"0.4rem", alignItems:"flex-end" }}
                      onClick={e => e.stopPropagation()}>
+                  <button className="btn-edit-grupo" title="Editar" onClick={() => abrirEditar(s)}>✏️</button>
                   {s.actividad_estado
                     ? <span className={`badge-estado badge-${s.actividad_estado.replace(/ /g,"-").toLowerCase()}`}>
                         {s.actividad_estado}
@@ -238,11 +269,74 @@ export default function ModuloSolicitudes({ onDataChange }) {
             <DetalleRow label="Grupo origen" value={detalle.grupo_origen?.nombre} />
             <DetalleRow label="Estado"       value={detalle.actividad_estado || "Pendiente de asignación"} />
             <DetalleRow label="Registrada"   value={new Date(detalle.fecha_creacion).toLocaleString("es-VE")} />
+            {detalle.fecha_actualizacion && (
+              <DetalleRow label="Última edición" value={new Date(detalle.fecha_actualizacion).toLocaleString("es-VE")} />
+            )}
             {detalle.lat && (
               <div style={{ marginTop:"0.75rem" }}>
                 <MapaReadOnly lat={detalle.lat} lng={detalle.lng} />
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Modal editar solicitud */}
+      {editando && (
+        <div className="overlay" onClick={() => setEditando(null)}>
+          <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+            <h3>✏️ Editar Solicitud</h3>
+            <form onSubmit={submitEditar} className="form" style={{ marginTop: "0.75rem" }}>
+              <div className="form-row">
+                <label>Descripción / Solicitud *
+                  <textarea required rows={4} value={editando.descripcion}
+                    onChange={e => setEditando(p => ({ ...p, descripcion: e.target.value }))}
+                    placeholder="Describe detalladamente la necesidad..." />
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+                  <label>Prioridad *
+                    <div className="prioridad-group">
+                      {PRIORIDADES.map(p => (
+                        <button key={p} type="button"
+                          className={`prioridad-btn ${editando.prioridad === p ? "prioridad-active" : ""}`}
+                          style={editando.prioridad === p
+                            ? { background: PRIORIDAD_BG[p], color: PRIORIDAD_COLOR[p], borderColor: PRIORIDAD_COLOR[p] }
+                            : {}}
+                          onClick={() => setEditando(prev => ({ ...prev, prioridad: p }))}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                  <label>Fecha y hora del evento
+                    <input type="datetime-local" value={editando.fecha_hora}
+                      onChange={e => setEditando(p => ({ ...p, fecha_hora: e.target.value }))} />
+                  </label>
+                  <label>Solicitante (miembro)
+                    <select value={editando.solicitante_id}
+                      onChange={e => setEditando(p => ({ ...p, solicitante_id: e.target.value || "" }))}>
+                      <option value="">— Seleccionar miembro —</option>
+                      {miembros.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.nombre}{m.cargo ? ` · ${m.cargo}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <label>Ubicación — haz clic en el mapa o busca una dirección
+                <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
+                  <MapaPicker
+                    value={{ lat: editando.lat, lng: editando.lng, address: editando.ubicacion }}
+                    onChange={({ lat, lng, address }) => setEditando(p => ({ ...p, lat, lng, ubicacion: address }))}
+                  />
+                </Suspense>
+              </label>
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary">Guardar cambios</button>
+                <button type="button" className="btn-ghost" onClick={() => setEditando(null)}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
