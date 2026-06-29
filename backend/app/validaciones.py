@@ -47,9 +47,7 @@ def validar_miembro(data):
     else:
         e = validar_telefono(data.get("telefono"))
         if e: errores["telefono"] = e
-    if not data.get("tlf_alternativo", "").strip():
-        errores["tlf_alternativo"] = "El teléfono alternativo es obligatorio."
-    else:
+    if data.get("tlf_alternativo", "").strip():
         e = validar_telefono(data.get("tlf_alternativo"))
         if e: errores["tlf_alternativo"] = e
     if not data.get("email", "").strip():

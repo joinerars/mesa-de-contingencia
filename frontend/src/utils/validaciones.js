@@ -48,8 +48,7 @@ export function validarFormMiembro(f) {
   if (!f.telefono.trim())         errores.telefono = "El teléfono principal es obligatorio.";
   else { const e = validarTelefono(f.telefono); if (e) errores.telefono = e; }
 
-  if (!f.tlf_alternativo.trim())  errores.tlf_alternativo = "El teléfono alternativo es obligatorio.";
-  else { const e = validarTelefono(f.tlf_alternativo); if (e) errores.tlf_alternativo = e; }
+  if (f.tlf_alternativo?.trim()) { const e = validarTelefono(f.tlf_alternativo); if (e) errores.tlf_alternativo = e; }
 
   if (!f.email.trim())            errores.email = "El correo es obligatorio.";
   else { const e = validarEmail(f.email); if (e) errores.email = e; }

@@ -179,7 +179,7 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
                 onChange={e => cambiarCampo("telefono", e.target.value)} onBlur={() => marcarTocado("telefono")}
                 className={tocado.telefono && errores.telefono ? "input-err" : ""} />
             </Campo>
-            <Campo label="Teléfono alternativo *" error={tocado.tlf_alternativo && errores.tlf_alternativo} hint="0212-5554321">
+            <Campo label="Teléfono alternativo" error={tocado.tlf_alternativo && errores.tlf_alternativo} hint="0212-5554321 (opcional)">
               <input value={form.tlf_alternativo} placeholder="0212-5554321"
                 onChange={e => cambiarCampo("tlf_alternativo", e.target.value)} onBlur={() => marcarTocado("tlf_alternativo")}
                 className={tocado.tlf_alternativo && errores.tlf_alternativo ? "input-err" : ""} />
