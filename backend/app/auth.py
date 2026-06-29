@@ -71,14 +71,17 @@ def get_current_user():
     if sv_token is None or user_id is None:
         return None
 
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT session_version FROM {SCHEMA}.usuarios WHERE id = %s AND activo = 1", (user_id,))
-    row = cur.fetchone()
-    conn.close()
-
-    if not row or row[0] != sv_token:
-        return None  # Token de sesión anterior o usuario desactivado
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(f"SELECT session_version FROM {SCHEMA}.usuarios WHERE id = %s AND activo = 1", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+        if not row or row[0] != sv_token:
+            return None  # Sesión anterior invalidada o usuario desactivado
+    except Exception:
+        # Si la BD no responde, confiar en el JWT (evita deslogueos por timeout)
+        pass
 
     payload.pop("exp", None)
     payload.pop("sv", None)
