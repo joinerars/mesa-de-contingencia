@@ -108,6 +108,7 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
     e.preventDefault();
     try {
       await api.cambiarPasswordGrupo(editandoGrupo.id, { password: nuevaPass });
+      setUsuarioGrupo(p => ({ ...p, password_plain: nuevaPass }));
       setNuevaPass("");
       flash("Contraseña actualizada.");
     } catch (err) { flash(err.message, false); }
@@ -433,24 +434,34 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
             {usuarioGrupo ? (
               <>
                 <div className="info-banner" style={{ marginBottom: "1rem" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>Usuario de acceso</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "1.15rem", fontWeight: 800, color: "var(--navy)", letterSpacing: "0.02em" }}>
-                      {usuarioGrupo.username}
-                    </span>
-                    <span style={{ fontSize: "0.8rem", fontWeight: 600, color: usuarioGrupo.activo ? "#16a34a" : "#dc2626" }}>
-                      {usuarioGrupo.activo ? "● Activo" : "● Inactivo"}
-                    </span>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>Credenciales de acceso</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", width: 80 }}>Usuario:</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem", color: "var(--navy)" }}>
+                        {usuarioGrupo.username}
+                      </span>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 600, color: usuarioGrupo.activo ? "#16a34a" : "#dc2626" }}>
+                        {usuarioGrupo.activo ? "● Activo" : "● Inactivo"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", width: 80 }}>Contraseña:</span>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "1rem", color: "#374151",
+                        background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+                        {usuarioGrupo.password_plain || <em style={{ fontStyle: "italic", opacity: 0.5 }}>no disponible</em>}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <form onSubmit={cambiarPassword}>
-                  <label style={{ display:"flex", flexDirection:"column", gap:4, fontSize:"0.85rem", fontWeight:600, marginBottom:"0.75rem" }}>
+                <form onSubmit={cambiarPassword} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                  <label style={{ display:"flex", flexDirection:"column", gap:4, fontSize:"0.85rem", fontWeight:600, flex: 1 }}>
                     Nueva contraseña (mín. 6 caracteres)
-                    <input type="password" value={nuevaPass} minLength={6} required
+                    <input type="text" value={nuevaPass} minLength={6} required
                       placeholder="Nueva contraseña"
                       onChange={e => setNuevaPass(e.target.value)} />
                   </label>
-                  <button type="submit" className="btn-secondary">Cambiar contraseña</button>
+                  <button type="submit" className="btn-secondary" style={{ whiteSpace: "nowrap" }}>🔄 Cambiar</button>
                 </form>
               </>
             ) : (

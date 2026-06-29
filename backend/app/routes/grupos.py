@@ -131,14 +131,14 @@ def get_usuario_grupo(grupo_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT id, username, activo FROM {SCHEMA}.usuarios
+        SELECT id, username, activo, password_plain FROM {SCHEMA}.usuarios
         WHERE grupo_id = %s AND rol = 'grupo'
     """, (grupo_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
         return jsonify(None)
-    return jsonify({"id": row[0], "username": row[1], "activo": bool(row[2])})
+    return jsonify({"id": row[0], "username": row[1], "activo": bool(row[2]), "password_plain": row[3]})
 
 
 @main_bp.post("/api/grupos/<int:grupo_id>/usuario")
@@ -167,14 +167,14 @@ def crear_usuario_grupo(grupo_id):
         return jsonify({"error": "Este grupo ya tiene un usuario asignado"}), 409
     h = generate_password_hash(password)
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.usuarios (username, password_hash, rol, grupo_id, activo)
+        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
         OUTPUT INSERTED.id
-        VALUES (%s, %s, 'grupo', %s, 1)
-    """, (username, h, grupo_id))
+        VALUES (%s, %s, %s, 'grupo', %s, 1)
+    """, (username, h, password, grupo_id))
     new_id = cur.fetchone()[0]
     conn.commit()
     conn.close()
-    return jsonify({"id": new_id, "username": username, "activo": True}), 201
+    return jsonify({"id": new_id, "username": username, "activo": True, "password_plain": password}), 201
 
 
 @main_bp.put("/api/grupos/<int:grupo_id>/usuario")
@@ -188,12 +188,12 @@ def cambiar_password_grupo(grupo_id):
     cur = conn.cursor()
     h = generate_password_hash(password)
     cur.execute(f"""
-        UPDATE {SCHEMA}.usuarios SET password_hash = %s
+        UPDATE {SCHEMA}.usuarios SET password_hash = %s, password_plain = %s
         WHERE grupo_id = %s AND rol = 'grupo'
-    """, (h, grupo_id))
+    """, (h, password, grupo_id))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "No hay usuario para este grupo"}), 404
     conn.commit()
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "password_plain": password})
