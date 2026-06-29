@@ -1,41 +1,42 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { api } from "../api/client";
 
+const MapaPicker = lazy(() => import("./MapaPicker"));
+
+const CONTACTO_VACIO = { nombre: "", cargo: "", telefono: "", email: "" };
+const FORM_VACIO = { nombre: "", descripcion: "", direccion: "", lat: null, lng: null, contactos: [] };
+
 export default function ModuloCentros() {
-  const [centros,     setCentros]     = useState([]);
-  const [msg,         setMsg]         = useState(null);
-  const [modalNuevo,  setModalNuevo]  = useState(null);
-  const [editando,    setEditando]    = useState(null);
-  const [modalUser,   setModalUser]   = useState(null); // { centro, usuario }
-  const [nuevoUser,   setNuevoUser]   = useState({ username: "", password: "", password2: "" });
-  const [nuevaPass,   setNuevaPass]   = useState("");
+  const [centros,    setCentros]    = useState([]);
+  const [msg,        setMsg]        = useState(null);
+  const [modalForm,  setModalForm]  = useState(null); // { modo:"nuevo"|"editar", data }
 
   const reload = async () => setCentros(await api.getCentros());
   useEffect(() => { reload(); }, []);
 
-  const flash = (text, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 3500); };
+  const flash = (text, ok = true) => {
+    setMsg({ text, ok });
+    setTimeout(() => setMsg(null), 4000);
+  };
 
-  const crearCentro = async (e) => {
+  // ── Guardar ───────────────────────────────────────────────────────────────
+  const guardar = async (e) => {
     e.preventDefault();
+    const { modo, data } = modalForm;
     try {
-      await api.crearCentro(modalNuevo);
-      setModalNuevo(null);
+      if (modo === "nuevo") {
+        await api.crearCentro(data);
+        flash("Centro creado. Las credenciales aparecen en la tarjeta.");
+      } else {
+        await api.editarCentro(data.id, data);
+        flash("Centro actualizado.");
+      }
+      setModalForm(null);
       await reload();
-      flash("Centro creado.");
     } catch (err) { flash(err.message, false); }
   };
 
-  const guardarEdicion = async (e) => {
-    e.preventDefault();
-    try {
-      await api.editarCentro(editando.id, editando);
-      setEditando(null);
-      await reload();
-      flash("Centro actualizado.");
-    } catch (err) { flash(err.message, false); }
-  };
-
-  const eliminarCentro = async (c) => {
+  const eliminar = async (c) => {
     if (!confirm(`¿Eliminar "${c.nombre}"? No se puede deshacer.`)) return;
     try {
       await api.eliminarCentro(c.id);
@@ -44,42 +45,47 @@ export default function ModuloCentros() {
     } catch (err) { flash(err.message, false); }
   };
 
-  const abrirUsuario = (c) => {
-    setModalUser({ centro: c, usuario: c.usuario });
-    setNuevoUser({ username: "", password: "", password2: "" });
-    setNuevaPass("");
-  };
-
-  const crearUsuario = async (e) => {
-    e.preventDefault();
-    if (nuevoUser.password !== nuevoUser.password2) { flash("Las contraseñas no coinciden.", false); return; }
+  const renovarPass = async (c) => {
+    if (!confirm(`¿Generar nueva contraseña para "${c.nombre}"? La anterior quedará inválida.`)) return;
     try {
-      const u = await api.crearUsuarioCentro(modalUser.centro.id, { username: nuevoUser.username, password: nuevoUser.password });
-      setModalUser(p => ({ ...p, usuario: u }));
-      setNuevoUser({ username: "", password: "", password2: "" });
+      await api.regenerarPasswordCentro(c.id);
       await reload();
-      flash("Usuario creado.");
+      flash("Contraseña renovada.");
     } catch (err) { flash(err.message, false); }
   };
 
-  const cambiarPassword = async (e) => {
-    e.preventDefault();
-    try {
-      await api.cambiarPasswordCentro(modalUser.centro.id, { password: nuevaPass });
-      setNuevaPass("");
-      flash("Contraseña actualizada.");
-    } catch (err) { flash(err.message, false); }
-  };
+  // ── Helpers formulario ────────────────────────────────────────────────────
+  const setField = (key, val) =>
+    setModalForm(p => ({ ...p, data: { ...p.data, [key]: val } }));
 
+  const setContacto = (i, key, val) =>
+    setModalForm(p => {
+      const contactos = [...p.data.contactos];
+      contactos[i] = { ...contactos[i], [key]: val };
+      return { ...p, data: { ...p.data, contactos } };
+    });
+
+  const addContacto = () =>
+    setModalForm(p => ({
+      ...p, data: { ...p.data, contactos: [...p.data.contactos, { ...CONTACTO_VACIO }] },
+    }));
+
+  const removeContacto = (i) =>
+    setModalForm(p => ({
+      ...p, data: { ...p.data, contactos: p.data.contactos.filter((_, idx) => idx !== i) },
+    }));
+
+  const abrirNuevo  = () => setModalForm({ modo: "nuevo",  data: { ...FORM_VACIO, contactos: [] } });
+  const abrirEditar = (c) => setModalForm({ modo: "editar", data: { ...c, contactos: c.contactos || [] } });
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="modulo">
       <h2>🏥 Centros de Atención</h2>
       {msg && <div className={`alert ${msg.ok ? "alert-ok" : "alert-err"}`}>{msg.text}</div>}
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-        <button className="btn-primary" onClick={() => setModalNuevo({ nombre: "", descripcion: "" })}>
-          + Nuevo Centro
-        </button>
+        <button className="btn-primary" onClick={abrirNuevo}>+ Nuevo Centro</button>
       </div>
 
       {centros.length === 0
@@ -91,137 +97,151 @@ export default function ModuloCentros() {
                 <div className="grupo-card-header">
                   <span className="grupo-nombre">🏥 {c.nombre}</span>
                   <div className="grupo-card-actions">
-                    <button className="btn-edit-grupo" onClick={() => setEditando({ ...c })} title="Editar">✏️</button>
-                    <button className="btn-edit-grupo" style={{ background: "#dc2626" }} onClick={() => eliminarCentro(c)} title="Eliminar">🗑️</button>
+                    <button className="btn-edit-grupo" onClick={() => abrirEditar(c)} title="Editar">✏️</button>
+                    <button className="btn-edit-grupo" style={{ background: "#dc2626" }} onClick={() => eliminar(c)} title="Eliminar">🗑️</button>
                   </div>
                 </div>
+
                 {c.descripcion && <p className="grupo-desc">{c.descripcion}</p>}
-                <div style={{ marginTop: "0.5rem" }}>
-                  {c.usuario
-                    ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.82rem", color: "var(--navy)", fontWeight: 700 }}>
-                          👤 {c.usuario.username}
-                        </span>
-                        <span style={{ fontSize: "0.75rem", color: c.usuario.activo ? "#16a34a" : "#dc2626" }}>
-                          {c.usuario.activo ? "● Activo" : "● Inactivo"}
-                        </span>
-                        <button className="btn-edit-grupo" style={{ fontSize: "0.72rem", padding: "2px 8px" }} onClick={() => abrirUsuario(c)}>
-                          🔑 Contraseña
-                        </button>
+                {c.direccion   && <p className="grupo-desc" style={{ fontSize: "0.8rem" }}>📍 {c.direccion}</p>}
+
+                {/* Contactos */}
+                {c.contactos?.length > 0 && (
+                  <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {c.contactos.map(ct => (
+                      <div key={ct.id} style={{ fontSize: "0.8rem", color: "var(--navy)" }}>
+                        <strong>{ct.nombre}</strong>
+                        {ct.cargo    && <span style={{ color: "var(--text-muted)", marginLeft: "0.4rem" }}>— {ct.cargo}</span>}
+                        {ct.telefono && <span style={{ marginLeft: "0.5rem" }}>📞 {ct.telefono}</span>}
+                        {ct.email    && <span style={{ marginLeft: "0.5rem" }}>✉️ {ct.email}</span>}
                       </div>
-                    )
-                    : (
-                      <button className="btn-secondary" style={{ fontSize: "0.78rem", padding: "4px 12px" }} onClick={() => abrirUsuario(c)}>
-                        + Crear usuario de acceso
+                    ))}
+                  </div>
+                )}
+
+                {/* Credenciales — siempre visibles */}
+                {c.usuario && (
+                  <div style={{
+                    marginTop: "0.75rem", background: "#f0f6ff",
+                    border: "1px solid #c3d9ff", borderRadius: 8, padding: "0.6rem 0.75rem",
+                  }}>
+                    <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: "0.3rem", fontWeight: 600 }}>
+                      CREDENCIALES DE ACCESO
+                    </div>
+                    <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                      <div>
+                        <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Usuario</span>
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--navy)" }}>{c.usuario.username}</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Contraseña</span>
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--navy)", fontFamily: "monospace" }}>
+                          {c.usuario.password_plain || "••••••••••"}
+                        </div>
+                      </div>
+                      <button className="btn-secondary" style={{ fontSize: "0.72rem", padding: "3px 10px", marginLeft: "auto" }}
+                        onClick={() => renovarPass(c)}>
+                        🔄 Renovar
                       </button>
-                    )
-                  }
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )
       }
 
-      {/* Modal nuevo centro */}
-      {modalNuevo && (
-        <div className="overlay" onClick={() => setModalNuevo(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Nuevo Centro de Atención</h3>
-            <form onSubmit={crearCentro} className="form" style={{ marginTop: "0.75rem" }}>
+      {/* ── Modal crear / editar ── */}
+      {modalForm && (
+        <div className="overlay" onClick={() => setModalForm(null)}>
+          <div className="modal" style={{ maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}
+               onClick={e => e.stopPropagation()}>
+            <h3>{modalForm.modo === "nuevo" ? "Nuevo Centro de Atención" : "Editar Centro"}</h3>
+            <form onSubmit={guardar} className="form" style={{ marginTop: "0.75rem" }}>
+
               <label>Nombre *
-                <input required autoFocus value={modalNuevo.nombre}
-                  onChange={e => setModalNuevo(p => ({ ...p, nombre: e.target.value }))}
-                  placeholder="Ej. Centro de Salud La Florida" />
+                <input required autoFocus value={modalForm.data.nombre}
+                  onChange={e => setField("nombre", e.target.value)}
+                  placeholder="Ej. Hospital Clínico Universitario" />
               </label>
               <label>Descripción
-                <input value={modalNuevo.descripcion}
-                  onChange={e => setModalNuevo(p => ({ ...p, descripcion: e.target.value }))}
+                <input value={modalForm.data.descripcion || ""}
+                  onChange={e => setField("descripcion", e.target.value)}
                   placeholder="Opcional" />
               </label>
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary">Crear Centro</button>
-                <button type="button" className="btn-ghost" onClick={() => setModalNuevo(null)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal editar centro */}
-      {editando && (
-        <div className="overlay" onClick={() => setEditando(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Editar Centro</h3>
-            <form onSubmit={guardarEdicion} className="form" style={{ marginTop: "0.75rem" }}>
-              <label>Nombre *
-                <input required value={editando.nombre}
-                  onChange={e => setEditando(p => ({ ...p, nombre: e.target.value }))} />
+              <label>Dirección
+                <input value={modalForm.data.direccion || ""}
+                  onChange={e => setField("direccion", e.target.value)}
+                  placeholder="Av. Principal, Caracas" />
               </label>
-              <label>Descripción
-                <input value={editando.descripcion || ""}
-                  onChange={e => setEditando(p => ({ ...p, descripcion: e.target.value }))} />
-              </label>
-              <div className="modal-actions">
-                <button type="submit" className="btn-primary">Guardar</button>
-                <button type="button" className="btn-ghost" onClick={() => setEditando(null)}>Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Modal usuario de acceso */}
-      {modalUser && (
-        <div className="overlay" onClick={() => setModalUser(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>🔑 Usuario — {modalUser.centro.nombre}</h3>
-            {modalUser.usuario ? (
-              <>
-                <div className="info-banner" style={{ margin: "0.75rem 0 1rem" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>Usuario de acceso</div>
-                  <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--navy)" }}>{modalUser.usuario.username}</span>
-                  <span style={{ marginLeft: "0.75rem", fontSize: "0.8rem", fontWeight: 600, color: modalUser.usuario.activo ? "#16a34a" : "#dc2626" }}>
-                    {modalUser.usuario.activo ? "● Activo" : "● Inactivo"}
-                  </span>
+              <div style={{ marginBottom: "0.75rem" }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
+                  Ubicación en mapa{modalForm.data.lat ? ` (${modalForm.data.lat.toFixed(5)}, ${modalForm.data.lng.toFixed(5)})` : " (opcional)"}
                 </div>
-                <form onSubmit={cambiarPassword} className="form">
-                  <label>Nueva contraseña (mín. 6 caracteres)
-                    <input type="password" value={nuevaPass} minLength={6} required
-                      placeholder="Nueva contraseña"
-                      onChange={e => setNuevaPass(e.target.value)} />
-                  </label>
-                  <div className="modal-actions">
-                    <button type="submit" className="btn-secondary">Cambiar contraseña</button>
-                    <button type="button" className="btn-ghost" onClick={() => setModalUser(null)}>Cerrar</button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <>
-                <p className="empty" style={{ margin: "0.75rem 0" }}>Este centro aún no tiene usuario de acceso.</p>
-                <form onSubmit={crearUsuario} className="form">
-                  <label>Nombre de usuario *
-                    <input required autoFocus value={nuevoUser.username}
-                      placeholder="ej. centro_florida"
-                      onChange={e => setNuevoUser(p => ({ ...p, username: e.target.value }))} />
-                  </label>
-                  <label>Contraseña * (mín. 6 caracteres)
-                    <input type="password" required minLength={6} value={nuevoUser.password}
-                      onChange={e => setNuevoUser(p => ({ ...p, password: e.target.value }))} />
-                  </label>
-                  <label>Confirmar contraseña *
-                    <input type="password" required value={nuevoUser.password2}
-                      onChange={e => setNuevoUser(p => ({ ...p, password2: e.target.value }))} />
-                  </label>
-                  <div className="modal-actions">
-                    <button type="submit" className="btn-primary">Crear Usuario</button>
-                    <button type="button" className="btn-ghost" onClick={() => setModalUser(null)}>Cancelar</button>
-                  </div>
-                </form>
-              </>
-            )}
+                <Suspense fallback={<div style={{ height: 220, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>Cargando mapa…</div>}>
+                  <MapaPicker
+                    lat={modalForm.data.lat} lng={modalForm.data.lng}
+                    onChange={({ lat, lng }) => setModalForm(p => ({ ...p, data: { ...p.data, lat, lng } }))}
+                  />
+                </Suspense>
+              </div>
+
+              {/* Contactos */}
+              <div style={{ marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Contactos</span>
+                  <button type="button" className="btn-secondary" style={{ fontSize: "0.78rem", padding: "3px 10px" }}
+                    onClick={addContacto}>+ Agregar</button>
+                </div>
+                {modalForm.data.contactos.length === 0
+                  ? <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Sin contactos aún.</p>
+                  : modalForm.data.contactos.map((ct, i) => (
+                    <div key={i} style={{ background: "#f8f9fa", borderRadius: 8, padding: "0.6rem 0.75rem", marginBottom: "0.5rem", border: "1px solid #e5e7eb" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                        <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--navy)" }}>Contacto {i + 1}</span>
+                        <button type="button" onClick={() => removeContacto(i)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: "1rem" }}>✕</button>
+                      </div>
+                      <div className="form-row">
+                        <label style={{ flex: 2 }}>Nombre *
+                          <input required value={ct.nombre}
+                            onChange={e => setContacto(i, "nombre", e.target.value)} placeholder="María González" />
+                        </label>
+                        <label style={{ flex: 1 }}>Cargo
+                          <input value={ct.cargo || ""}
+                            onChange={e => setContacto(i, "cargo", e.target.value)} placeholder="Directora" />
+                        </label>
+                      </div>
+                      <div className="form-row">
+                        <label style={{ flex: 1 }}>Teléfono
+                          <input value={ct.telefono || ""}
+                            onChange={e => setContacto(i, "telefono", e.target.value)} placeholder="0412-1234567" />
+                        </label>
+                        <label style={{ flex: 1 }}>Email
+                          <input value={ct.email || ""}
+                            onChange={e => setContacto(i, "email", e.target.value)} placeholder="maria@ucv.ve" />
+                        </label>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+
+              {modalForm.modo === "nuevo" && (
+                <div style={{ fontSize: "0.8rem", color: "var(--navy)", background: "#f0f6ff", border: "1px solid #c3d9ff", borderRadius: 8, padding: "0.6rem 0.75rem" }}>
+                  🔑 El usuario y contraseña se generarán automáticamente y quedarán visibles en la tarjeta del centro.
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: "1rem" }}>
+                <button type="submit" className="btn-primary">
+                  {modalForm.modo === "nuevo" ? "Crear Centro" : "Guardar cambios"}
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => setModalForm(null)}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

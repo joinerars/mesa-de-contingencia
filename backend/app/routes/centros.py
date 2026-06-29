@@ -1,8 +1,32 @@
+import random
+import string
 from flask import request, jsonify
 from . import main_bp
 from ..db import get_connection, SCHEMA
 from ..auth import require_admin, get_current_user
 from werkzeug.security import generate_password_hash
+
+
+def _slug(nombre):
+    import re
+    s = nombre.lower().strip()
+    for a, b in [("áàä","a"),("éèë","e"),("íìï","i"),("óòö","o"),("úùü","u")]:
+        for c in a: s = s.replace(c, b)
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")[:30]
+    return s or "centro"
+
+
+def _gen_password(n=10):
+    return "".join(random.choices(string.ascii_letters + string.digits, k=n))
+
+
+def _get_contactos(cur, centro_id):
+    cur.execute(f"""
+        SELECT id, nombre, cargo, telefono, email
+        FROM {SCHEMA}.centro_contactos WHERE centro_id = %s ORDER BY id
+    """, (centro_id,))
+    return [{"id": r[0], "nombre": r[1], "cargo": r[2], "telefono": r[3], "email": r[4]}
+            for r in cur.fetchall()]
 
 
 @main_bp.get("/api/centros")
@@ -11,8 +35,8 @@ def listar_centros():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT c.id, c.nombre, c.descripcion, c.activo,
-               u.id, u.username, u.activo
+        SELECT c.id, c.nombre, c.descripcion, c.activo, c.direccion, c.lat, c.lng,
+               u.id, u.username, u.activo, u.password_plain
         FROM {SCHEMA}.centros_atencion c
         LEFT JOIN {SCHEMA}.usuarios u ON u.centro_id = c.id AND u.rol = 'centro'
         ORDER BY c.nombre
@@ -21,8 +45,11 @@ def listar_centros():
     for r in cur.fetchall():
         rows.append({
             "id": r[0], "nombre": r[1], "descripcion": r[2], "activo": bool(r[3]),
-            "usuario": {"id": r[4], "username": r[5], "activo": bool(r[6])} if r[4] else None
+            "direccion": r[4], "lat": r[5], "lng": r[6],
+            "usuario": {"id": r[7], "username": r[8], "activo": bool(r[9]), "password_plain": r[10]} if r[7] else None,
         })
+    for row in rows:
+        row["contactos"] = _get_contactos(cur, row["id"])
     conn.close()
     return jsonify(rows)
 
@@ -34,16 +61,49 @@ def crear_centro():
     nombre = (data.get("nombre") or "").strip()
     if not nombre:
         return jsonify({"error": "nombre requerido"}), 400
+
+    username = _slug(nombre)
+    password = _gen_password()
+
     conn = get_connection()
     cur = conn.cursor()
+
+    base = username
+    suffix = 1
+    while True:
+        cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE username = %s", (username,))
+        if not cur.fetchone():
+            break
+        username = f"{base}_{suffix}"
+        suffix += 1
+
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.centros_atencion (nombre, descripcion)
-        OUTPUT INSERTED.id VALUES (%s, %s)
-    """, (nombre, (data.get("descripcion") or "").strip() or None))
+        INSERT INTO {SCHEMA}.centros_atencion (nombre, descripcion, direccion, lat, lng)
+        OUTPUT INSERTED.id VALUES (%s, %s, %s, %s, %s)
+    """, (nombre,
+          (data.get("descripcion") or "").strip() or None,
+          (data.get("direccion") or "").strip() or None,
+          data.get("lat") or None, data.get("lng") or None))
     new_id = cur.fetchone()[0]
+
+    h = generate_password_hash(password)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, centro_id, activo)
+        OUTPUT INSERTED.id VALUES (%s, %s, %s, 'centro', %s, 1)
+    """, (username, h, password, new_id))
+
+    for c in (data.get("contactos") or []):
+        nombre_c = (c.get("nombre") or "").strip()
+        if nombre_c:
+            cur.execute(f"""
+                INSERT INTO {SCHEMA}.centro_contactos (centro_id, nombre, cargo, telefono, email)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (new_id, nombre_c, c.get("cargo") or None,
+                  c.get("telefono") or None, c.get("email") or None))
+
     conn.commit()
     conn.close()
-    return jsonify({"id": new_id, "nombre": nombre, "descripcion": data.get("descripcion"), "activo": True, "usuario": None}), 201
+    return jsonify({"id": new_id, "nombre": nombre, "activo": True}), 201
 
 
 @main_bp.put("/api/centros/<int:centro_id>")
@@ -57,11 +117,25 @@ def editar_centro(centro_id):
     cur = conn.cursor()
     cur.execute(f"""
         UPDATE {SCHEMA}.centros_atencion
-        SET nombre=%s, descripcion=%s WHERE id=%s
-    """, (nombre, (data.get("descripcion") or "").strip() or None, centro_id))
+        SET nombre=%s, descripcion=%s, direccion=%s, lat=%s, lng=%s WHERE id=%s
+    """, (nombre,
+          (data.get("descripcion") or "").strip() or None,
+          (data.get("direccion") or "").strip() or None,
+          data.get("lat") or None, data.get("lng") or None, centro_id))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Centro no encontrado"}), 404
+
+    cur.execute(f"DELETE FROM {SCHEMA}.centro_contactos WHERE centro_id = %s", (centro_id,))
+    for c in (data.get("contactos") or []):
+        nombre_c = (c.get("nombre") or "").strip()
+        if nombre_c:
+            cur.execute(f"""
+                INSERT INTO {SCHEMA}.centro_contactos (centro_id, nombre, cargo, telefono, email)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (centro_id, nombre_c, c.get("cargo") or None,
+                  c.get("telefono") or None, c.get("email") or None))
+
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -76,6 +150,7 @@ def eliminar_centro(centro_id):
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Este centro tiene solicitudes registradas y no puede eliminarse"}), 409
+    cur.execute(f"DELETE FROM {SCHEMA}.centro_contactos WHERE centro_id=%s", (centro_id,))
     cur.execute(f"DELETE FROM {SCHEMA}.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
     cur.execute(f"DELETE FROM {SCHEMA}.centros_atencion WHERE id=%s", (centro_id,))
     if cur.rowcount == 0:
@@ -86,74 +161,20 @@ def eliminar_centro(centro_id):
     return jsonify({"ok": True})
 
 
-@main_bp.get("/api/centros/<int:centro_id>/usuario")
-@require_admin
-def get_usuario_centro(centro_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-        SELECT id, username, activo FROM {SCHEMA}.usuarios
-        WHERE centro_id=%s AND rol='centro'
-    """, (centro_id,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        return jsonify(None)
-    return jsonify({"id": row[0], "username": row[1], "activo": bool(row[2])})
-
-
-@main_bp.post("/api/centros/<int:centro_id>/usuario")
-@require_admin
-def crear_usuario_centro(centro_id):
-    data = request.get_json() or {}
-    username = (data.get("username") or "").strip()
-    password = (data.get("password") or "").strip()
-    if not username or not password:
-        return jsonify({"error": "username y password requeridos"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "La contraseña debe tener al menos 6 caracteres"}), 400
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT id FROM {SCHEMA}.centros_atencion WHERE id=%s", (centro_id,))
-    if not cur.fetchone():
-        conn.close()
-        return jsonify({"error": "Centro no encontrado"}), 404
-    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE username=%s", (username,))
-    if cur.fetchone():
-        conn.close()
-        return jsonify({"error": f"El usuario '{username}' ya existe"}), 409
-    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
-    if cur.fetchone():
-        conn.close()
-        return jsonify({"error": "Este centro ya tiene usuario asignado"}), 409
-    h = generate_password_hash(password)
-    cur.execute(f"""
-        INSERT INTO {SCHEMA}.usuarios (username, password_hash, rol, centro_id, activo)
-        OUTPUT INSERTED.id VALUES (%s, %s, 'centro', %s, 1)
-    """, (username, h, centro_id))
-    new_id = cur.fetchone()[0]
-    conn.commit()
-    conn.close()
-    return jsonify({"id": new_id, "username": username, "activo": True}), 201
-
-
 @main_bp.put("/api/centros/<int:centro_id>/usuario")
 @require_admin
-def cambiar_password_centro(centro_id):
-    data = request.get_json() or {}
-    password = (data.get("password") or "").strip()
-    if not password or len(password) < 6:
-        return jsonify({"error": "La contraseña debe tener al menos 6 caracteres"}), 400
+def regenerar_password_centro(centro_id):
+    password = _gen_password()
+    h = generate_password_hash(password)
     conn = get_connection()
     cur = conn.cursor()
-    h = generate_password_hash(password)
     cur.execute(f"""
-        UPDATE {SCHEMA}.usuarios SET password_hash=%s
+        UPDATE {SCHEMA}.usuarios SET password_hash=%s, password_plain=%s
         WHERE centro_id=%s AND rol='centro'
-    """, (h, centro_id))
+    """, (h, password, centro_id))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "No hay usuario para este centro"}), 404
     conn.commit()
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "password": password})
