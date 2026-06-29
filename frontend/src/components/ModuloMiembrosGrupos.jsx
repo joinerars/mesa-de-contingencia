@@ -387,6 +387,12 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
                     <span className="rep-nombre">⭐ {g.representante.nombre}</span>
                   </div>
                 )}
+                {g.usuario && (
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--text-muted)", borderTop: "1px solid #e5e7eb", paddingTop: "0.5rem" }}>
+                    <span style={{ marginRight: "0.75rem" }}>🔑 <strong style={{ fontFamily: "monospace", color: "var(--navy)" }}>{g.usuario.username}</strong></span>
+                    <span>🔒 <strong style={{ fontFamily: "monospace", color: "#374151", background: "#f3f4f6", padding: "1px 6px", borderRadius: 3 }}>{g.usuario.password_plain || "••••••"}</strong></span>
+                  </div>
+                )}
                 {g.miembros.length > 0 && (
                   <div className="grupo-miembros">
                     {g.miembros.map(m => <span key={m.id} className="miembro-chip">{m.nombre}{m.cargo ? ` · ${m.cargo}` : ""}</span>)}
@@ -465,29 +471,7 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
                 </form>
               </>
             ) : (
-              <>
-                <p className="empty" style={{ marginBottom: "0.75rem" }}>Este grupo aún no tiene usuario de acceso.</p>
-                <form onSubmit={crearUsuario}>
-                  <div className="form-row">
-                    <label style={{ display:"flex", flexDirection:"column", gap:4, fontSize:"0.85rem", fontWeight:600 }}>
-                      Nombre de usuario *
-                      <input required value={nuevoUser.username} placeholder="ej. grupo_acopio"
-                        onChange={e => setNuevoUser(p => ({ ...p, username: e.target.value }))} />
-                    </label>
-                    <label style={{ display:"flex", flexDirection:"column", gap:4, fontSize:"0.85rem", fontWeight:600 }}>
-                      Contraseña * (mín. 6 caracteres)
-                      <input type="password" required minLength={6} value={nuevoUser.password} placeholder="Contraseña"
-                        onChange={e => setNuevoUser(p => ({ ...p, password: e.target.value }))} />
-                    </label>
-                  </div>
-                  <label style={{ display:"flex", flexDirection:"column", gap:4, fontSize:"0.85rem", fontWeight:600, marginBottom:"0.75rem" }}>
-                    Confirmar contraseña *
-                    <input type="password" required value={nuevoUser.password2} placeholder="Repetir contraseña"
-                      onChange={e => setNuevoUser(p => ({ ...p, password2: e.target.value }))} />
-                  </label>
-                  <button type="submit" className="btn-primary">Crear Usuario de Acceso</button>
-                </form>
-              </>
+              <p className="empty">No se encontró usuario para este grupo.</p>
             )}
           </div>
         </div>

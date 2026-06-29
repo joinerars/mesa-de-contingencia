@@ -1,8 +1,23 @@
+import re
+import random
+import string
 from flask import request, jsonify
 from . import main_bp
 from ..db import get_connection, SCHEMA
 from ..auth import require_auth, require_admin, get_current_user
 from werkzeug.security import generate_password_hash
+
+
+def _slug(nombre):
+    s = nombre.lower().strip()
+    for a, b in [("áàä","a"),("éèë","e"),("íìï","i"),("óòö","o"),("úùü","u")]:
+        for c in a: s = s.replace(c, b)
+    s = re.sub(r"[^a-z0-9]+", "_", s).strip("_")[:25]
+    return f"grupo_{s}" if s else "grupo"
+
+
+def _gen_password(n=10):
+    return "".join(random.choices(string.ascii_letters + string.digits, k=n))
 
 def _fetch_grupo(cur, grupo_id):
     cur.execute(f"""
@@ -59,6 +74,14 @@ def listar_grupos():
         for r in cur.fetchall():
             if r[0] in grupos:
                 grupos[r[0]]["miembros"].append({"id": r[1], "nombre": r[2], "cargo": r[3]})
+        cur.execute(f"""
+            SELECT grupo_id, username, password_plain, activo
+            FROM {SCHEMA}.usuarios
+            WHERE grupo_id IN ({",".join(str(k) for k in grupos)}) AND rol = 'grupo'
+        """)
+        for r in cur.fetchall():
+            if r[0] in grupos:
+                grupos[r[0]]["usuario"] = {"username": r[1], "password_plain": r[2], "activo": bool(r[3])}
     conn.close()
     return jsonify(list(grupos.values()))
 
@@ -76,9 +99,31 @@ def crear_grupo():
         OUTPUT INSERTED.id VALUES (%s, %s)
     """, (nombre, data.get("descripcion", "").strip() or None))
     new_id = cur.fetchone()[0]
+
+    # Auto-generar usuario de acceso
+    base = _slug(nombre)
+    username = base
+    suffix = 1
+    while True:
+        cur.execute(f"SELECT 1 FROM {SCHEMA}.usuarios WHERE username = %s", (username,))
+        if not cur.fetchone():
+            break
+        username = f"{base}_{suffix}"
+        suffix += 1
+    password = _gen_password()
+    h = generate_password_hash(password)
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
+        VALUES (%s, %s, %s, 'grupo', %s, 1)
+    """, (username, h, password, new_id))
+
     conn.commit()
     conn.close()
-    return jsonify({"id": new_id, "nombre": nombre, "descripcion": data.get("descripcion"), "miembros": [], "representante": None}), 201
+    return jsonify({
+        "id": new_id, "nombre": nombre, "descripcion": data.get("descripcion"),
+        "miembros": [], "representante": None,
+        "usuario": {"username": username, "password_plain": password, "activo": True},
+    }), 201
 
 
 @main_bp.delete("/api/grupos/<int:grupo_id>")
