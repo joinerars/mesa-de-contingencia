@@ -18,6 +18,7 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
 
   const [actividades,   setActividades]   = useState([]);
   const [miembros,      setMiembros]      = useState([]);
+  const [gruposAll,     setGruposAll]     = useState([]);
   const [filtroGrupo,   setFiltroGrupo]   = useState("todos");
   const [loading,       setLoading]       = useState({});
   const [detalle,       setDetalle]       = useState(null);
@@ -25,11 +26,16 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
   const [modalMiembros, setModalMiembros] = useState(null);
   const [seleccion,     setSeleccion]     = useState(new Set());
   const [guardando,     setGuardando]     = useState(false);
+  const [modalRapida,   setModalRapida]   = useState(null);
+  const [creando,       setCreando]       = useState(false);
+
+  const FORM_RAPIDA = { descripcion: "", grupo_id: "", prioridad: "Normal", ubicacion: "", fecha_hora: "" };
 
   const reload = async () => {
-    const [acts, ms] = await Promise.all([api.getActividades(), api.getMiembros()]);
+    const [acts, ms, gs] = await Promise.all([api.getActividades(), api.getMiembros(), api.getGrupos()]);
     setActividades(acts);
     setMiembros(ms);
+    setGruposAll(gs);
     return acts;
   };
 
@@ -81,6 +87,22 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
     });
   };
 
+  const submitRapida = async (e) => {
+    e.preventDefault();
+    setCreando(true);
+    try {
+      const payload = { ...modalRapida };
+      if (user.rol === "grupo") payload.grupo_id = user.grupo_id;
+      await api.crearActividadRapida(payload);
+      setModalRapida(null);
+      await reload();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCreando(false);
+    }
+  };
+
   const guardarMiembros = async () => {
     setGuardando(true);
     try {
@@ -100,19 +122,24 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
     <div className="modulo">
       <div className="act-header">
         <h2>📊 Tablero de Actividades</h2>
-        {(isAdmin || grupos.length > 1) && (
-          <div className="filtro-grupo">
-            <label htmlFor="filtro-sel">Filtrar por grupo:</label>
-            <select id="filtro-sel" value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)}>
-              <option value="todos">Todos ({actividades.length})</option>
-              {grupos.map(g => (
-                <option key={g.id} value={String(g.id)}>
-                  {g.nombre} ({actividades.filter(a => a.grupo.id === g.id).length})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          {(isAdmin || grupos.length > 1) && (
+            <div className="filtro-grupo">
+              <label htmlFor="filtro-sel">Filtrar por grupo:</label>
+              <select id="filtro-sel" value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)}>
+                <option value="todos">Todos ({actividades.length})</option>
+                {grupos.map(g => (
+                  <option key={g.id} value={String(g.id)}>
+                    {g.nombre} ({actividades.filter(a => a.grupo.id === g.id).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button className="btn-primary" onClick={() => setModalRapida({ ...FORM_RAPIDA })}>
+            + Nueva Actividad
+          </button>
+        </div>
       </div>
 
       {/* ── Kanban ── */}
@@ -264,6 +291,70 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
             {tabDetalle === "comentarios" && (
               <SeccionComentarios actividadId={detalle.id} />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal nueva actividad rápida ── */}
+      {modalRapida && (
+        <div className="overlay" onClick={() => setModalRapida(null)}>
+          <div className="modal modal-detalle" onClick={e => e.stopPropagation()}>
+            <div className="detalle-header">
+              <h3 style={{ color: "var(--navy)", margin: 0 }}>Nueva Actividad</h3>
+              <button className="btn-ghost" onClick={() => setModalRapida(null)}>✕</button>
+            </div>
+            <form onSubmit={submitRapida} className="form" style={{ marginTop: "0.75rem" }}>
+              <label>Descripción *
+                <textarea required rows={3} value={modalRapida.descripcion}
+                  onChange={e => setModalRapida(p => ({ ...p, descripcion: e.target.value }))}
+                  placeholder="¿Qué hay que hacer?" />
+              </label>
+
+              {isAdmin && (
+                <label>Grupo de Trabajo *
+                  <select required value={modalRapida.grupo_id}
+                    onChange={e => setModalRapida(p => ({ ...p, grupo_id: e.target.value }))}>
+                    <option value="">— Seleccionar grupo —</option>
+                    {gruposAll.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                  </select>
+                </label>
+              )}
+
+              <label>Prioridad
+                <div className="prioridad-group">
+                  {["Baja", "Normal", "Alta"].map(p => (
+                    <button key={p} type="button"
+                      className={`prioridad-btn ${modalRapida.prioridad === p ? "prioridad-active" : ""}`}
+                      style={modalRapida.prioridad === p ? {
+                        background: p === "Alta" ? "#fee2e2" : p === "Normal" ? "#fef3c7" : "#f3f4f6",
+                        color: p === "Alta" ? "#dc2626" : p === "Normal" ? "#d97706" : "#6b7280",
+                        borderColor: p === "Alta" ? "#dc2626" : p === "Normal" ? "#d97706" : "#6b7280",
+                      } : {}}
+                      onClick={() => setModalRapida(pr => ({ ...pr, prioridad: p }))}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </label>
+
+              <label>Ubicación
+                <input value={modalRapida.ubicacion}
+                  onChange={e => setModalRapida(p => ({ ...p, ubicacion: e.target.value }))}
+                  placeholder="Ej. Edificio A, piso 3" />
+              </label>
+
+              <label>Fecha y hora estimada
+                <input type="datetime-local" value={modalRapida.fecha_hora}
+                  onChange={e => setModalRapida(p => ({ ...p, fecha_hora: e.target.value }))} />
+              </label>
+
+              <div className="modal-actions">
+                <button type="submit" className="btn-primary" disabled={creando}>
+                  {creando ? "Creando..." : "Crear Actividad"}
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => setModalRapida(null)}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

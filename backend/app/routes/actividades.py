@@ -37,6 +37,57 @@ def crear_actividad():
     conn.close()
     return jsonify({"id": new_id, "estado": "Por ejecutar"}), 201
 
+@main_bp.post("/api/actividades/rapida")
+@require_auth
+def crear_actividad_rapida():
+    """Crea solicitud + actividad en un solo paso."""
+    user = get_current_user()
+    data = request.get_json() or {}
+    descripcion = (data.get("descripcion") or "").strip()
+    grupo_id = data.get("grupo_id")
+    if not descripcion:
+        return jsonify({"error": "La descripción es obligatoria"}), 400
+    if not grupo_id:
+        return jsonify({"error": "El grupo es obligatorio"}), 400
+    if user["rol"] == "grupo" and int(grupo_id) != user["grupo_id"]:
+        return jsonify({"error": "Solo puedes crear actividades para tu propio grupo"}), 403
+
+    from datetime import datetime
+    def _parse_fecha(v):
+        if not v: return None
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"):
+            try: return datetime.strptime(v, fmt)
+            except ValueError: pass
+        return None
+
+    prioridad = data.get("prioridad", "Normal")
+    if prioridad not in ["Baja", "Normal", "Alta"]:
+        prioridad = "Normal"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO MesaDeContingencia.solicitudes
+            (descripcion, creado_por_grupo_id, ubicacion, fecha_hora, prioridad, lat, lng, solicitante_id)
+        OUTPUT INSERTED.id
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
+    """, (descripcion, grupo_id,
+          data.get("ubicacion") or None,
+          _parse_fecha(data.get("fecha_hora")),
+          prioridad,
+          data.get("lat") or None, data.get("lng") or None))
+    solicitud_id = cur.fetchone()[0]
+
+    cur.execute("""
+        INSERT INTO MesaDeContingencia.actividades (solicitud_id, grupo_id, estado)
+        OUTPUT INSERTED.id VALUES (%s, %s, 'Por ejecutar')
+    """, (solicitud_id, grupo_id))
+    act_id = cur.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return jsonify({"id": act_id, "solicitud_id": solicitud_id, "estado": "Por ejecutar"}), 201
+
+
 @main_bp.put("/api/actividades/<int:act_id>")
 @require_auth
 def actualizar_actividad(act_id):

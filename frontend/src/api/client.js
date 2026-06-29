@@ -65,6 +65,7 @@ export const api = {
 
   getActividades: () => req("GET", "/actividades"),
   crearActividad: (d) => req("POST", "/actividades", d),
+  crearActividadRapida: (d) => req("POST", "/actividades/rapida", d),
   actualizarActividad: (id, estado) => req("PUT", `/actividades/${id}`, { estado }),
   setMiembrosActividad: (id, miembro_ids) => req("PUT", `/actividades/${id}/miembros`, { miembro_ids }),
 
