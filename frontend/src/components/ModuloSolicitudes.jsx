@@ -163,6 +163,9 @@ export default function ModuloSolicitudes({ onDataChange }) {
             </div>
           </div>
 
+          <TablaItems items={form.items || []}
+            onChange={items => setForm(p => ({ ...p, items }))} />
+
           {/* Mapa */}
           <label>Ubicación — haz clic en el mapa o busca una dirección
             <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
@@ -172,9 +175,6 @@ export default function ModuloSolicitudes({ onDataChange }) {
               />
             </Suspense>
           </label>
-
-          <TablaItems items={form.items || []}
-            onChange={items => setForm(p => ({ ...p, items }))} />
 
           <button type="submit" className="btn-primary">Guardar Solicitud</button>
         </form>
@@ -350,6 +350,8 @@ export default function ModuloSolicitudes({ onDataChange }) {
                   </label>
                 </div>
               </div>
+              <TablaItems items={editando.items || []}
+                onChange={items => setEditando(p => ({ ...p, items }))} />
               <label>Ubicación — haz clic en el mapa o busca una dirección
                 <Suspense fallback={<div className="mapa-loading">Cargando mapa...</div>}>
                   <MapaPicker
@@ -358,8 +360,6 @@ export default function ModuloSolicitudes({ onDataChange }) {
                   />
                 </Suspense>
               </label>
-              <TablaItems items={editando.items || []}
-                onChange={items => setEditando(p => ({ ...p, items }))} />
 
               <div className="modal-actions">
                 <button type="submit" className="btn-primary">Guardar cambios</button>
