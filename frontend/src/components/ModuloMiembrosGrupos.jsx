@@ -142,10 +142,18 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
 
   const submitEditarMiembro = async (e) => {
     e.preventDefault();
-    const errs = validarFormMiembro(editandoMiembro);
+    const sanitized = {
+      ...editandoMiembro,
+      nombre: editandoMiembro.nombre || "",
+      telefono: editandoMiembro.telefono || "",
+      email: editandoMiembro.email || "",
+      tlf_alternativo: editandoMiembro.tlf_alternativo || "",
+      cargo: editandoMiembro.cargo || "",
+    };
+    const errs = validarFormMiembro(sanitized);
     if (Object.keys(errs).length > 0) { flash("Corrige los errores del formulario.", false); return; }
     try {
-      await api.editarMiembro(editandoMiembro.id, editandoMiembro);
+      await api.editarMiembro(editandoMiembro.id, sanitized);
       setEditandoMiembro(null);
       await reload(); onDataChange();
       flash("Miembro actualizado.");
@@ -289,17 +297,19 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
       )}
 
       {/* ── Lista miembros ── */}
-      {(tab === "miembros") && (
+      {(tab === "miembros") && (() => {
+        const miembrosUnicos = [...new Map(miembros.map(m => [m.id, m])).values()];
+        return (
         <div className="ver-registros">
-          <h3>({miembros.length} miembro{miembros.length !== 1 ? "s" : ""})</h3>
-          {miembros.length === 0
+          <h3>({miembrosUnicos.length} miembro{miembrosUnicos.length !== 1 ? "s" : ""})</h3>
+          {miembrosUnicos.length === 0
             ? <p className="empty">No hay miembros registrados.</p>
             : (
               <div className="table-wrap">
                 <table className="reg-table">
                   <thead><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Cargo</th><th>Teléfono</th><th>Tlf. Alt.</th><th>Email</th><th></th></tr></thead>
                   <tbody>
-                    {miembros.map(m => (
+                    {miembrosUnicos.map(m => (
                       <tr key={m.id}>
                         <td className="td-id">{m.id}</td>
                         <td><strong>{m.nombre}</strong></td>
@@ -321,7 +331,8 @@ export default function ModuloMiembrosGrupos({ onDataChange }) {
               </div>
             )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Lista grupos (solo admin) ── */}
       {tab === "grupos" && isAdmin && (
