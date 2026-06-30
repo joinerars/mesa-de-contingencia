@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..validaciones import validar_miembro, normalizar_cedula
 from ..auth import require_auth, get_current_user
 
@@ -14,18 +14,18 @@ def listar_miembros():
         cur.execute(f"""
             SELECT m.id, m.nombre, m.cedula, m.telefono, m.tlf_alternativo, m.cargo, m.email,
                    g.id, g.nombre
-            FROM {SCHEMA}.miembros m
-            LEFT JOIN {SCHEMA}.miembros_grupos mg ON mg.miembro_id = m.id
-            LEFT JOIN {SCHEMA}.grupos_trabajo g ON g.id = mg.grupo_id
+            FROM miembros m
+            LEFT JOIN miembros_grupos mg ON mg.miembro_id = m.id
+            LEFT JOIN grupos_trabajo g ON g.id = mg.grupo_id
             ORDER BY m.nombre
         """)
     else:
         cur.execute(f"""
             SELECT m.id, m.nombre, m.cedula, m.telefono, m.tlf_alternativo, m.cargo, m.email,
                    g.id, g.nombre
-            FROM {SCHEMA}.miembros m
-            JOIN {SCHEMA}.miembros_grupos mg ON mg.miembro_id = m.id
-            JOIN {SCHEMA}.grupos_trabajo g ON g.id = mg.grupo_id
+            FROM miembros m
+            JOIN miembros_grupos mg ON mg.miembro_id = m.id
+            JOIN grupos_trabajo g ON g.id = mg.grupo_id
             WHERE mg.grupo_id = %s
             ORDER BY m.nombre
         """, (user["grupo_id"],))
@@ -56,8 +56,8 @@ def crear_miembro():
     cur = conn.cursor()
     try:
         cur.execute(f"""
-            INSERT INTO {SCHEMA}.miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
-            OUTPUT INSERTED.id
+            INSERT INTO miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
+            RETURNING id
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (data["nombre"].strip(),
               normalizar_cedula(data.get("cedula")) or None,
@@ -74,7 +74,7 @@ def crear_miembro():
 
     for gid in grupo_ids:
         cur.execute(f"""
-            INSERT INTO {SCHEMA}.miembros_grupos (miembro_id, grupo_id)
+            INSERT INTO miembros_grupos (miembro_id, grupo_id)
             VALUES (%s, %s)
         """, (new_id, int(gid)))
 
@@ -98,7 +98,7 @@ def editar_miembro(miembro_id):
     # Grupo puede editar solo miembros de su grupo
     if user["rol"] == "grupo":
         cur.execute(f"""
-            SELECT 1 FROM {SCHEMA}.miembros_grupos
+            SELECT 1 FROM miembros_grupos
             WHERE miembro_id = %s AND grupo_id = %s
         """, (miembro_id, user["grupo_id"]))
         if not cur.fetchone():
@@ -107,7 +107,7 @@ def editar_miembro(miembro_id):
 
     try:
         cur.execute(f"""
-            UPDATE {SCHEMA}.miembros
+            UPDATE miembros
             SET nombre=%s, cedula=%s, telefono=%s, tlf_alternativo=%s, cargo=%s, email=%s
             WHERE id=%s
         """, (data["nombre"].strip(),
@@ -127,10 +127,10 @@ def editar_miembro(miembro_id):
     if user["rol"] == "admin":
         grupo_ids = data.get("grupo_ids") or []
         try:
-            cur.execute(f"DELETE FROM {SCHEMA}.miembros_grupos WHERE miembro_id = %s", (miembro_id,))
+            cur.execute(f"DELETE FROM miembros_grupos WHERE miembro_id = %s", (miembro_id,))
             for gid in grupo_ids:
                 cur.execute(f"""
-                    INSERT INTO {SCHEMA}.miembros_grupos (miembro_id, grupo_id)
+                    INSERT INTO miembros_grupos (miembro_id, grupo_id)
                     VALUES (%s, %s)
                 """, (miembro_id, int(gid)))
         except Exception as ex:
@@ -152,7 +152,7 @@ def eliminar_miembro(miembro_id):
     # Grupo puede eliminar solo miembros de su grupo
     if user["rol"] == "grupo":
         cur.execute(f"""
-            SELECT 1 FROM {SCHEMA}.miembros_grupos
+            SELECT 1 FROM miembros_grupos
             WHERE miembro_id = %s AND grupo_id = %s
         """, (miembro_id, user["grupo_id"]))
         if not cur.fetchone():
@@ -161,14 +161,14 @@ def eliminar_miembro(miembro_id):
 
     # Verificar que no tenga actividades asignadas
     cur.execute(f"""
-        SELECT COUNT(*) FROM {SCHEMA}.actividad_miembros WHERE miembro_id = %s
+        SELECT COUNT(*) FROM actividad_miembros WHERE miembro_id = %s
     """, (miembro_id,))
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Este miembro tiene actividades asignadas y no puede eliminarse."}), 409
 
-    cur.execute(f"DELETE FROM {SCHEMA}.miembros_grupos WHERE miembro_id = %s", (miembro_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.miembros WHERE id = %s", (miembro_id,))
+    cur.execute(f"DELETE FROM miembros_grupos WHERE miembro_id = %s", (miembro_id,))
+    cur.execute(f"DELETE FROM miembros WHERE id = %s", (miembro_id,))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Miembro no encontrado"}), 404

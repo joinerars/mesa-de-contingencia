@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..auth import require_auth
 
 
@@ -13,16 +13,18 @@ def buscar_insumos():
     cur = conn.cursor()
     if q:
         cur.execute(f"""
-            SELECT TOP (%s) id, codigo, nombre, forma_farmaceutica, concentracion, volumen_peso
-            FROM {SCHEMA}.insumos
-            WHERE nombre LIKE %s OR forma_farmaceutica LIKE %s
+            SELECT id, codigo, nombre, forma_farmaceutica, concentracion, volumen_peso
+            FROM insumos
+            WHERE nombre ILIKE %s OR forma_farmaceutica ILIKE %s
             ORDER BY nombre, forma_farmaceutica
-        """, (limit, f"%{q}%", f"%{q}%"))
+            LIMIT %s
+        """, (f"%{q}%", f"%{q}%", limit))
     else:
         cur.execute(f"""
-            SELECT TOP (%s) id, codigo, nombre, forma_farmaceutica, concentracion, volumen_peso
-            FROM {SCHEMA}.insumos
+            SELECT id, codigo, nombre, forma_farmaceutica, concentracion, volumen_peso
+            FROM insumos
             ORDER BY nombre, forma_farmaceutica
+            LIMIT %s
         """, (limit,))
     rows = [
         {"id": r[0], "codigo": r[1], "nombre": r[2],

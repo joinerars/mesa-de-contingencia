@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..auth import require_auth, require_admin, get_current_user
 from datetime import datetime
 
@@ -38,11 +38,11 @@ def _select_base():
            s.ubicacion, s.fecha_hora, s.prioridad, s.lat, s.lng,
            s.solicitante_id, m.nombre, m.telefono, m.email,
            s.fecha_actualizacion
-    FROM {SCHEMA}.solicitudes s
-    LEFT JOIN {SCHEMA}.grupos_trabajo g   ON g.id = s.creado_por_grupo_id
-    LEFT JOIN {SCHEMA}.centros_atencion c ON c.id = s.creado_por_centro_id
-    LEFT JOIN {SCHEMA}.actividades a      ON a.solicitud_id = s.id
-    LEFT JOIN {SCHEMA}.miembros m         ON m.id = s.solicitante_id
+    FROM solicitudes s
+    LEFT JOIN grupos_trabajo g   ON g.id = s.creado_por_grupo_id
+    LEFT JOIN centros_atencion c ON c.id = s.creado_por_centro_id
+    LEFT JOIN actividades a      ON a.solicitud_id = s.id
+    LEFT JOIN miembros m         ON m.id = s.solicitante_id
 """
 
 ORDER = """ORDER BY
@@ -57,7 +57,7 @@ def _get_items(cur, solicitud_ids):
     ids_str = ",".join(str(i) for i in solicitud_ids)
     cur.execute(f"""
         SELECT solicitud_id, id, nombre, cantidad, insumo_id
-        FROM {SCHEMA}.solicitud_items
+        FROM solicitud_items
         WHERE solicitud_id IN ({ids_str})
         ORDER BY id
     """)
@@ -71,12 +71,12 @@ def _resolve_insumo_id(cur, nombre_upper, insumo_id=None):
     """Return insumo_id: use provided, find by name, or create new."""
     if insumo_id:
         return insumo_id
-    cur.execute(f"SELECT id FROM {SCHEMA}.insumos WHERE nombre = %s", (nombre_upper,))
+    cur.execute(f"SELECT id FROM insumos WHERE nombre = %s", (nombre_upper,))
     row = cur.fetchone()
     if row:
         return row[0]
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.insumos (nombre) OUTPUT INSERTED.id VALUES (%s)
+        INSERT INTO insumos (nombre) RETURNING id VALUES (%s)
     """, (nombre_upper,))
     return cur.fetchone()[0]
 
@@ -89,7 +89,7 @@ def _insert_items(cur, solicitud_id, items):
         cantidad = max(1, int(item.get("cantidad") or 1))
         insumo_id = _resolve_insumo_id(cur, nombre, item.get("insumo_id"))
         cur.execute(f"""
-            INSERT INTO {SCHEMA}.solicitud_items (solicitud_id, insumo_id, nombre, cantidad)
+            INSERT INTO solicitud_items (solicitud_id, insumo_id, nombre, cantidad)
             VALUES (%s, %s, %s, %s)
         """, (solicitud_id, insumo_id, nombre, cantidad))
 
@@ -119,10 +119,10 @@ def crear_solicitud():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.solicitudes
+        INSERT INTO solicitudes
             (descripcion, creado_por_grupo_id, creado_por_centro_id, ubicacion, fecha_hora,
              prioridad, lat, lng, solicitante_id)
-        OUTPUT INSERTED.id, INSERTED.fecha_creacion
+        RETURNING id, fecha_creacion
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (descripcion, grupo_id, centro_id,
           data.get("ubicacion"), _parse_fecha(data.get("fecha_hora")),
@@ -153,7 +153,7 @@ def editar_solicitud(sol_id):
 
     # Verificar propiedad
     cur.execute(f"""
-        SELECT creado_por_grupo_id, creado_por_centro_id FROM {SCHEMA}.solicitudes WHERE id = %s
+        SELECT creado_por_grupo_id, creado_por_centro_id FROM solicitudes WHERE id = %s
     """, (sol_id,))
     row = cur.fetchone()
     if not row:
@@ -167,16 +167,16 @@ def editar_solicitud(sol_id):
         return jsonify({"error": "Acceso denegado"}), 403
 
     cur.execute(f"""
-        UPDATE {SCHEMA}.solicitudes
+        UPDATE solicitudes
         SET descripcion=%s, prioridad=%s, ubicacion=%s, fecha_hora=%s,
-            lat=%s, lng=%s, solicitante_id=%s, fecha_actualizacion=GETDATE()
+            lat=%s, lng=%s, solicitante_id=%s, fecha_actualizacion=NOW()
         WHERE id=%s
     """, (descripcion, prioridad,
           data.get("ubicacion") or None, _parse_fecha(data.get("fecha_hora")),
           data.get("lat"), data.get("lng"),
           data.get("solicitante_id") or None,
           sol_id))
-    cur.execute(f"DELETE FROM {SCHEMA}.solicitud_items WHERE solicitud_id=%s", (sol_id,))
+    cur.execute(f"DELETE FROM solicitud_items WHERE solicitud_id=%s", (sol_id,))
     _insert_items(cur, sol_id, data.get("items", []))
     conn.commit()
     conn.close()
@@ -188,12 +188,12 @@ def editar_solicitud(sol_id):
 def eliminar_solicitud(sol_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.actividades WHERE solicitud_id = %s", (sol_id,))
+    cur.execute(f"SELECT COUNT(*) FROM actividades WHERE solicitud_id = %s", (sol_id,))
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Esta solicitud ya fue convertida en actividad y no puede eliminarse"}), 409
-    cur.execute(f"DELETE FROM {SCHEMA}.solicitud_items WHERE solicitud_id = %s", (sol_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.solicitudes WHERE id = %s", (sol_id,))
+    cur.execute(f"DELETE FROM solicitud_items WHERE solicitud_id = %s", (sol_id,))
+    cur.execute(f"DELETE FROM solicitudes WHERE id = %s", (sol_id,))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Solicitud no encontrada"}), 404
@@ -221,7 +221,7 @@ def solicitudes_pendientes():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(_select_base() + f"""
-        WHERE NOT EXISTS (SELECT 1 FROM {SCHEMA}.actividades a2 WHERE a2.solicitud_id = s.id)
+        WHERE NOT EXISTS (SELECT 1 FROM actividades a2 WHERE a2.solicitud_id = s.id)
     """ + ORDER)
     rows = _rows_with_items(cur, cur.fetchall())
     conn.close()

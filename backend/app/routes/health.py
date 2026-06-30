@@ -7,9 +7,9 @@ def health():
     try:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = 'MesaDeContingencia'")
+        cur.execute("SELECT 1")
         row = cur.fetchone()
         conn.close()
-        return jsonify({"status": "ok", "schema": row[0] if row else None})
+        return jsonify({"status": "ok", "db_connected": bool(row)})
     except Exception as e:
         return jsonify({"status": "error", "detail": str(e)}), 500

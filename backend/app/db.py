@@ -1,17 +1,12 @@
-import pymssql
+import psycopg2
+import psycopg2.extras
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-SCHEMA = os.getenv("DB_SCHEMA", "MesaDeContingencia")
+# Ya no usamos SCHEMA = "MesaDeContingencia" porque en Postgres usaremos "public" por defecto.
 
 def get_connection():
-    return pymssql.connect(
-        server=os.getenv("DB_SERVER"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME"),
-        tds_version="7.4",
-        as_dict=False,
-    )
+    return psycopg2.connect(os.getenv("DATABASE_URL"))
+

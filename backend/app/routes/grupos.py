@@ -3,7 +3,7 @@ import random
 import string
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..auth import require_auth, require_admin, get_current_user
 from werkzeug.security import generate_password_hash
 
@@ -22,8 +22,8 @@ def _gen_password(n=10):
 def _fetch_grupo(cur, grupo_id):
     cur.execute(f"""
         SELECT g.id, g.nombre, g.descripcion, m.id, m.nombre
-        FROM {SCHEMA}.grupos_trabajo g
-        LEFT JOIN {SCHEMA}.miembros m ON m.id = g.representante_principal_id
+        FROM grupos_trabajo g
+        LEFT JOIN miembros m ON m.id = g.representante_principal_id
         WHERE g.id = %s
     """, (grupo_id,))
     r = cur.fetchone()
@@ -33,8 +33,8 @@ def _fetch_grupo(cur, grupo_id):
              "representante": {"id": r[3], "nombre": r[4]} if r[3] else None, "miembros": []}
     cur.execute(f"""
         SELECT m.id, m.nombre, m.cargo
-        FROM {SCHEMA}.miembros_grupos mg
-        JOIN {SCHEMA}.miembros m ON m.id = mg.miembro_id
+        FROM miembros_grupos mg
+        JOIN miembros m ON m.id = mg.miembro_id
         WHERE mg.grupo_id = %s
     """, (grupo_id,))
     grupo["miembros"] = [{"id": r[0], "nombre": r[1], "cargo": r[2]} for r in cur.fetchall()]
@@ -49,15 +49,15 @@ def listar_grupos():
     if user["rol"] == "grupo":
         cur.execute(f"""
             SELECT g.id, g.nombre, g.descripcion, m.id, m.nombre
-            FROM {SCHEMA}.grupos_trabajo g
-            LEFT JOIN {SCHEMA}.miembros m ON m.id = g.representante_principal_id
+            FROM grupos_trabajo g
+            LEFT JOIN miembros m ON m.id = g.representante_principal_id
             WHERE g.id = %s
         """, (user["grupo_id"],))
     else:
         cur.execute(f"""
             SELECT g.id, g.nombre, g.descripcion, m.id, m.nombre
-            FROM {SCHEMA}.grupos_trabajo g
-            LEFT JOIN {SCHEMA}.miembros m ON m.id = g.representante_principal_id
+            FROM grupos_trabajo g
+            LEFT JOIN miembros m ON m.id = g.representante_principal_id
             ORDER BY g.nombre
         """)
     grupos = {r[0]: {"id": r[0], "nombre": r[1], "descripcion": r[2],
@@ -67,8 +67,8 @@ def listar_grupos():
     if grupos:
         cur.execute(f"""
             SELECT mg.grupo_id, m.id, m.nombre, m.cargo
-            FROM {SCHEMA}.miembros_grupos mg
-            JOIN {SCHEMA}.miembros m ON m.id = mg.miembro_id
+            FROM miembros_grupos mg
+            JOIN miembros m ON m.id = mg.miembro_id
             WHERE mg.grupo_id IN ({",".join(str(k) for k in grupos)})
         """)
         for r in cur.fetchall():
@@ -76,7 +76,7 @@ def listar_grupos():
                 grupos[r[0]]["miembros"].append({"id": r[1], "nombre": r[2], "cargo": r[3]})
         cur.execute(f"""
             SELECT grupo_id, username, password_plain, activo
-            FROM {SCHEMA}.usuarios
+            FROM usuarios
             WHERE grupo_id IN ({",".join(str(k) for k in grupos)}) AND rol = 'grupo'
         """)
         for r in cur.fetchall():
@@ -95,8 +95,8 @@ def crear_grupo():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.grupos_trabajo (nombre, descripcion)
-        OUTPUT INSERTED.id VALUES (%s, %s)
+        INSERT INTO grupos_trabajo (nombre, descripcion)
+        RETURNING id VALUES (%s, %s)
     """, (nombre, data.get("descripcion", "").strip() or None))
     new_id = cur.fetchone()[0]
 
@@ -107,14 +107,14 @@ def crear_grupo():
     base = username
     suffix = 1
     while True:
-        cur.execute(f"SELECT 1 FROM {SCHEMA}.usuarios WHERE username = %s", (username,))
+        cur.execute(f"SELECT 1 FROM usuarios WHERE username = %s", (username,))
         if not cur.fetchone():
             break
         username = f"{base}_{suffix}"
         suffix += 1
     h = generate_password_hash(password)
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
+        INSERT INTO usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
         VALUES (%s, %s, %s, 'grupo', %s, 1)
     """, (username, h, password, new_id))
 
@@ -132,13 +132,13 @@ def crear_grupo():
 def eliminar_grupo(grupo_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.actividades WHERE grupo_id = %s", (grupo_id,))
+    cur.execute(f"SELECT COUNT(*) FROM actividades WHERE grupo_id = %s", (grupo_id,))
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Este grupo tiene actividades asignadas y no puede eliminarse"}), 409
-    cur.execute(f"DELETE FROM {SCHEMA}.usuarios WHERE grupo_id = %s AND rol = 'grupo'", (grupo_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.miembros_grupos WHERE grupo_id = %s", (grupo_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.grupos_trabajo WHERE id = %s", (grupo_id,))
+    cur.execute(f"DELETE FROM usuarios WHERE grupo_id = %s AND rol = 'grupo'", (grupo_id,))
+    cur.execute(f"DELETE FROM miembros_grupos WHERE grupo_id = %s", (grupo_id,))
+    cur.execute(f"DELETE FROM grupos_trabajo WHERE id = %s", (grupo_id,))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Grupo no encontrado"}), 404
@@ -158,7 +158,7 @@ def editar_grupo(grupo_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        UPDATE {SCHEMA}.grupos_trabajo
+        UPDATE grupos_trabajo
         SET nombre = %s, descripcion = %s, representante_principal_id = %s
         WHERE id = %s
     """, (nombre, data.get("descripcion"), rep_id or None, grupo_id))
@@ -177,7 +177,7 @@ def get_usuario_grupo(grupo_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT id, username, activo, password_plain FROM {SCHEMA}.usuarios
+        SELECT id, username, activo, password_plain FROM usuarios
         WHERE grupo_id = %s AND rol = 'grupo'
     """, (grupo_id,))
     row = cur.fetchone()
@@ -199,22 +199,22 @@ def crear_usuario_grupo(grupo_id):
         return jsonify({"error": "La contraseña debe tener al menos 6 caracteres"}), 400
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"SELECT id FROM {SCHEMA}.grupos_trabajo WHERE id = %s", (grupo_id,))
+    cur.execute(f"SELECT id FROM grupos_trabajo WHERE id = %s", (grupo_id,))
     if not cur.fetchone():
         conn.close()
         return jsonify({"error": "Grupo no encontrado"}), 404
-    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE username = %s", (username,))
+    cur.execute(f"SELECT id FROM usuarios WHERE username = %s", (username,))
     if cur.fetchone():
         conn.close()
         return jsonify({"error": f"El usuario '{username}' ya existe"}), 409
-    cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE grupo_id = %s AND rol = 'grupo'", (grupo_id,))
+    cur.execute(f"SELECT id FROM usuarios WHERE grupo_id = %s AND rol = 'grupo'", (grupo_id,))
     if cur.fetchone():
         conn.close()
         return jsonify({"error": "Este grupo ya tiene un usuario asignado"}), 409
     h = generate_password_hash(password)
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
-        OUTPUT INSERTED.id
+        INSERT INTO usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
+        RETURNING id
         VALUES (%s, %s, %s, 'grupo', %s, 1)
     """, (username, h, password, grupo_id))
     new_id = cur.fetchone()[0]
@@ -234,7 +234,7 @@ def cambiar_password_grupo(grupo_id):
     cur = conn.cursor()
     h = generate_password_hash(password)
     cur.execute(f"""
-        UPDATE {SCHEMA}.usuarios SET password_hash = %s, password_plain = %s
+        UPDATE usuarios SET password_hash = %s, password_plain = %s
         WHERE grupo_id = %s AND rol = 'grupo'
     """, (h, password, grupo_id))
     if cur.rowcount == 0:

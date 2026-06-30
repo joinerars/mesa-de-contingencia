@@ -1,6 +1,6 @@
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..auth import require_auth, get_current_user
 
 @main_bp.get("/api/actividades/<int:act_id>/comentarios")
@@ -10,7 +10,7 @@ def get_comentarios(act_id):
     cur = conn.cursor()
     cur.execute(f"""
         SELECT id, autor_username, autor_rol, grupo_id, texto, fecha_creacion
-        FROM {SCHEMA}.actividad_comentarios
+        FROM actividad_comentarios
         WHERE actividad_id = %s
         ORDER BY fecha_creacion ASC
     """, (act_id,))
@@ -32,7 +32,7 @@ def crear_comentario(act_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute(f"SELECT grupo_id FROM {SCHEMA}.actividades WHERE id = %s", (act_id,))
+    cur.execute(f"SELECT grupo_id FROM actividades WHERE id = %s", (act_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -40,9 +40,9 @@ def crear_comentario(act_id):
     grupo_actividad_id = row[0]
 
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.actividad_comentarios
+        INSERT INTO actividad_comentarios
             (actividad_id, autor_username, autor_rol, grupo_id, texto)
-        OUTPUT INSERTED.id, INSERTED.fecha_creacion
+        RETURNING id, fecha_creacion
         VALUES (%s, %s, %s, %s, %s)
     """, (act_id, user["username"], user["rol"], user.get("grupo_id"), texto))
     nuevo = cur.fetchone()
@@ -52,14 +52,14 @@ def crear_comentario(act_id):
     notif_texto = f"💬 {autor_label}: {texto[:120]}"
 
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.notificaciones
+        INSERT INTO notificaciones
             (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
         VALUES ('admin', NULL, %s, %s, %s)
     """, (act_id, nuevo_id, notif_texto))
 
     if user["rol"] == "admin":
         cur.execute(f"""
-            INSERT INTO {SCHEMA}.notificaciones
+            INSERT INTO notificaciones
                 (para_rol, para_grupo_id, actividad_id, comentario_id, texto)
             VALUES ('grupo', %s, %s, %s, %s)
         """, (grupo_actividad_id, act_id, nuevo_id, notif_texto))
@@ -79,14 +79,14 @@ def get_notificaciones():
     if user["rol"] == "admin":
         cur.execute(f"""
             SELECT id, actividad_id, texto, leida, fecha_creacion
-            FROM {SCHEMA}.notificaciones
+            FROM notificaciones
             WHERE para_rol = 'admin'
             ORDER BY fecha_creacion DESC
         """)
     else:
         cur.execute(f"""
             SELECT id, actividad_id, texto, leida, fecha_creacion
-            FROM {SCHEMA}.notificaciones
+            FROM notificaciones
             WHERE para_rol = 'grupo' AND para_grupo_id = %s
             ORDER BY fecha_creacion DESC
         """, (user["grupo_id"],))
@@ -101,7 +101,7 @@ def get_notificaciones():
 def marcar_leida(nid):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"UPDATE {SCHEMA}.notificaciones SET leida = 1 WHERE id = %s", (nid,))
+    cur.execute(f"UPDATE notificaciones SET leida = TRUE WHERE id = %s", (nid,))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -114,10 +114,10 @@ def leer_todas():
     conn = get_connection()
     cur = conn.cursor()
     if user["rol"] == "admin":
-        cur.execute(f"UPDATE {SCHEMA}.notificaciones SET leida = 1 WHERE para_rol = 'admin'")
+        cur.execute(f"UPDATE notificaciones SET leida = TRUE WHERE para_rol = 'admin'")
     else:
         cur.execute(f"""
-            UPDATE {SCHEMA}.notificaciones SET leida = 1
+            UPDATE notificaciones SET leida = TRUE
             WHERE para_rol = 'grupo' AND para_grupo_id = %s
         """, (user["grupo_id"],))
     conn.commit()

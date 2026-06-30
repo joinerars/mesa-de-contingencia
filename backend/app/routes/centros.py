@@ -2,7 +2,7 @@ import random
 import string
 from flask import request, jsonify
 from . import main_bp
-from ..db import get_connection, SCHEMA
+from ..db import get_connection
 from ..auth import require_admin, get_current_user
 from werkzeug.security import generate_password_hash
 
@@ -23,7 +23,7 @@ def _gen_password(n=10):
 def _get_contactos(cur, centro_id):
     cur.execute(f"""
         SELECT id, nombre, cargo, telefono, email
-        FROM {SCHEMA}.centro_contactos WHERE centro_id = %s ORDER BY id
+        FROM centro_contactos WHERE centro_id = %s ORDER BY id
     """, (centro_id,))
     return [{"id": r[0], "nombre": r[1], "cargo": r[2], "telefono": r[3], "email": r[4]}
             for r in cur.fetchall()]
@@ -37,8 +37,8 @@ def listar_centros():
     cur.execute(f"""
         SELECT c.id, c.nombre, c.descripcion, c.activo, c.direccion, c.lat, c.lng,
                u.id, u.username, u.activo, u.password_plain
-        FROM {SCHEMA}.centros_atencion c
-        LEFT JOIN {SCHEMA}.usuarios u ON u.centro_id = c.id AND u.rol = 'centro'
+        FROM centros_atencion c
+        LEFT JOIN usuarios u ON u.centro_id = c.id AND u.rol = 'centro'
         ORDER BY c.nombre
     """)
     rows = []
@@ -71,15 +71,15 @@ def crear_centro():
     base = username
     suffix = 1
     while True:
-        cur.execute(f"SELECT id FROM {SCHEMA}.usuarios WHERE username = %s", (username,))
+        cur.execute(f"SELECT id FROM usuarios WHERE username = %s", (username,))
         if not cur.fetchone():
             break
         username = f"{base}_{suffix}"
         suffix += 1
 
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.centros_atencion (nombre, descripcion, direccion, lat, lng)
-        OUTPUT INSERTED.id VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO centros_atencion (nombre, descripcion, direccion, lat, lng)
+        RETURNING id VALUES (%s, %s, %s, %s, %s)
     """, (nombre,
           (data.get("descripcion") or "").strip() or None,
           (data.get("direccion") or "").strip() or None,
@@ -88,15 +88,15 @@ def crear_centro():
 
     h = generate_password_hash(password)
     cur.execute(f"""
-        INSERT INTO {SCHEMA}.usuarios (username, password_hash, password_plain, rol, centro_id, activo)
-        OUTPUT INSERTED.id VALUES (%s, %s, %s, 'centro', %s, 1)
+        INSERT INTO usuarios (username, password_hash, password_plain, rol, centro_id, activo)
+        RETURNING id VALUES (%s, %s, %s, 'centro', %s, 1)
     """, (username, h, password, new_id))
 
     for c in (data.get("contactos") or []):
         nombre_c = (c.get("nombre") or "").strip()
         if nombre_c:
             cur.execute(f"""
-                INSERT INTO {SCHEMA}.centro_contactos (centro_id, nombre, cargo, telefono, email)
+                INSERT INTO centro_contactos (centro_id, nombre, cargo, telefono, email)
                 VALUES (%s, %s, %s, %s, %s)
             """, (new_id, nombre_c, c.get("cargo") or None,
                   c.get("telefono") or None, c.get("email") or None))
@@ -116,7 +116,7 @@ def editar_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        UPDATE {SCHEMA}.centros_atencion
+        UPDATE centros_atencion
         SET nombre=%s, descripcion=%s, direccion=%s, lat=%s, lng=%s WHERE id=%s
     """, (nombre,
           (data.get("descripcion") or "").strip() or None,
@@ -126,12 +126,12 @@ def editar_centro(centro_id):
         conn.close()
         return jsonify({"error": "Centro no encontrado"}), 404
 
-    cur.execute(f"DELETE FROM {SCHEMA}.centro_contactos WHERE centro_id = %s", (centro_id,))
+    cur.execute(f"DELETE FROM centro_contactos WHERE centro_id = %s", (centro_id,))
     for c in (data.get("contactos") or []):
         nombre_c = (c.get("nombre") or "").strip()
         if nombre_c:
             cur.execute(f"""
-                INSERT INTO {SCHEMA}.centro_contactos (centro_id, nombre, cargo, telefono, email)
+                INSERT INTO centro_contactos (centro_id, nombre, cargo, telefono, email)
                 VALUES (%s, %s, %s, %s, %s)
             """, (centro_id, nombre_c, c.get("cargo") or None,
                   c.get("telefono") or None, c.get("email") or None))
@@ -146,13 +146,13 @@ def editar_centro(centro_id):
 def eliminar_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.solicitudes WHERE creado_por_centro_id=%s", (centro_id,))
+    cur.execute(f"SELECT COUNT(*) FROM solicitudes WHERE creado_por_centro_id=%s", (centro_id,))
     if cur.fetchone()[0] > 0:
         conn.close()
         return jsonify({"error": "Este centro tiene solicitudes registradas y no puede eliminarse"}), 409
-    cur.execute(f"DELETE FROM {SCHEMA}.centro_contactos WHERE centro_id=%s", (centro_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
-    cur.execute(f"DELETE FROM {SCHEMA}.centros_atencion WHERE id=%s", (centro_id,))
+    cur.execute(f"DELETE FROM centro_contactos WHERE centro_id=%s", (centro_id,))
+    cur.execute(f"DELETE FROM usuarios WHERE centro_id=%s AND rol='centro'", (centro_id,))
+    cur.execute(f"DELETE FROM centros_atencion WHERE id=%s", (centro_id,))
     if cur.rowcount == 0:
         conn.close()
         return jsonify({"error": "Centro no encontrado"}), 404
@@ -169,7 +169,7 @@ def regenerar_password_centro(centro_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-        UPDATE {SCHEMA}.usuarios SET password_hash=%s, password_plain=%s
+        UPDATE usuarios SET password_hash=%s, password_plain=%s
         WHERE centro_id=%s AND rol='centro'
     """, (h, password, centro_id))
     if cur.rowcount == 0:
