@@ -96,7 +96,7 @@ def crear_grupo():
     cur = conn.cursor()
     cur.execute(f"""
         INSERT INTO grupos_trabajo (nombre, descripcion)
-        RETURNING id VALUES (%s, %s)
+        VALUES (%s, %s) RETURNING id
     """, (nombre, data.get("descripcion", "").strip() or None))
     new_id = cur.fetchone()[0]
 
@@ -115,7 +115,7 @@ def crear_grupo():
     h = generate_password_hash(password)
     cur.execute(f"""
         INSERT INTO usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
-        VALUES (%s, %s, %s, 'grupo', %s, 1)
+        VALUES (%s, %s, %s, 'grupo', %s, TRUE)
     """, (username, h, password, new_id))
 
     conn.commit()
@@ -214,8 +214,7 @@ def crear_usuario_grupo(grupo_id):
     h = generate_password_hash(password)
     cur.execute(f"""
         INSERT INTO usuarios (username, password_hash, password_plain, rol, grupo_id, activo)
-        RETURNING id
-        VALUES (%s, %s, %s, 'grupo', %s, 1)
+        VALUES (%s, %s, %s, 'grupo', %s, TRUE) RETURNING id
     """, (username, h, password, grupo_id))
     new_id = cur.fetchone()[0]
     conn.commit()

@@ -57,8 +57,7 @@ def crear_miembro():
     try:
         cur.execute(f"""
             INSERT INTO miembros (nombre, cedula, telefono, tlf_alternativo, cargo, email)
-            RETURNING id
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         """, (data["nombre"].strip(),
               normalizar_cedula(data.get("cedula")) or None,
               data.get("telefono") or None,

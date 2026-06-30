@@ -76,7 +76,7 @@ def _resolve_insumo_id(cur, nombre_upper, insumo_id=None):
     if row:
         return row[0]
     cur.execute(f"""
-        INSERT INTO insumos (nombre) RETURNING id VALUES (%s)
+        INSERT INTO insumos (nombre) VALUES (%s) RETURNING id
     """, (nombre_upper,))
     return cur.fetchone()[0]
 
@@ -122,8 +122,7 @@ def crear_solicitud():
         INSERT INTO solicitudes
             (descripcion, creado_por_grupo_id, creado_por_centro_id, ubicacion, fecha_hora,
              prioridad, lat, lng, solicitante_id)
-        RETURNING id, fecha_creacion
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, fecha_creacion
     """, (descripcion, grupo_id, centro_id,
           data.get("ubicacion"), _parse_fecha(data.get("fecha_hora")),
           prioridad,

@@ -42,8 +42,7 @@ def crear_comentario(act_id):
     cur.execute(f"""
         INSERT INTO actividad_comentarios
             (actividad_id, autor_username, autor_rol, grupo_id, texto)
-        RETURNING id, fecha_creacion
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s) RETURNING id, fecha_creacion
     """, (act_id, user["username"], user["rol"], user.get("grupo_id"), texto))
     nuevo = cur.fetchone()
     nuevo_id, fecha = nuevo[0], str(nuevo[1])

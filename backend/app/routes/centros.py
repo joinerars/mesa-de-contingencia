@@ -79,7 +79,7 @@ def crear_centro():
 
     cur.execute(f"""
         INSERT INTO centros_atencion (nombre, descripcion, direccion, lat, lng)
-        RETURNING id VALUES (%s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s) RETURNING id
     """, (nombre,
           (data.get("descripcion") or "").strip() or None,
           (data.get("direccion") or "").strip() or None,
@@ -89,7 +89,7 @@ def crear_centro():
     h = generate_password_hash(password)
     cur.execute(f"""
         INSERT INTO usuarios (username, password_hash, password_plain, rol, centro_id, activo)
-        RETURNING id VALUES (%s, %s, %s, 'centro', %s, 1)
+        VALUES (%s, %s, %s, 'centro', %s, TRUE) RETURNING id
     """, (username, h, password, new_id))
 
     for c in (data.get("contactos") or []):
