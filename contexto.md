@@ -420,7 +420,7 @@ El proyecto migró de **Azure SQL Server (MSSQL)** a **Supabase (PostgreSQL)**:
    ├── Agrega items/insumos necesarios
    └── Opcionalmente marca ubicación en mapa
 
-5. Admin revisa Solicitudes Pendientes
+5. Admin o Coordinador revisa Solicitudes Pendientes
    └── Las asigna a un Grupo → se crea Actividad
 
    (O el grupo puede autoasignarse su propia solicitud)
