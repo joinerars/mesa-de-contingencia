@@ -30,7 +30,7 @@ def crear_actividad():
         return jsonify({"error": "Esta solicitud ya fue asignada"}), 409
     cur.execute(f"""
         INSERT INTO actividades (solicitud_id, grupo_id, estado)
-        RETURNING id VALUES (%s, %s, 'Por ejecutar')
+        VALUES (%s, %s, 'Por ejecutar') RETURNING id
     """, (solicitud_id, grupo_id))
     new_id = cur.fetchone()[0]
     conn.commit()
@@ -69,8 +69,7 @@ def crear_actividad_rapida():
     cur.execute(f"""
         INSERT INTO solicitudes
             (descripcion, creado_por_grupo_id, ubicacion, fecha_hora, prioridad, lat, lng, solicitante_id)
-        RETURNING id
-        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL) RETURNING id
     """, (descripcion, grupo_id,
           data.get("ubicacion") or None,
           _parse_fecha(data.get("fecha_hora")),
@@ -80,7 +79,7 @@ def crear_actividad_rapida():
 
     cur.execute(f"""
         INSERT INTO actividades (solicitud_id, grupo_id, estado)
-        RETURNING id VALUES (%s, %s, 'Por ejecutar')
+        VALUES (%s, %s, 'Por ejecutar') RETURNING id
     """, (solicitud_id, grupo_id))
     act_id = cur.fetchone()[0]
     conn.commit()
