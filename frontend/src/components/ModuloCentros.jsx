@@ -10,6 +10,7 @@ export default function ModuloCentros() {
   const [centros,    setCentros]    = useState([]);
   const [msg,        setMsg]        = useState(null);
   const [modalForm,  setModalForm]  = useState(null);
+  const [modalPassword, setModalPassword] = useState(null);
 
   const reload = async () => setCentros(await api.getCentros());
   useEffect(() => { reload(); }, []);
@@ -44,12 +45,18 @@ export default function ModuloCentros() {
     } catch (err) { flash(err.message, false); }
   };
 
-  const renovarPass = async (c) => {
-    if (!confirm(`¿Generar nueva contraseña para "${c.nombre}"? La anterior quedará inválida.`)) return;
+  const handleGuardarPassword = async (e) => {
+    e.preventDefault();
+    const { id, password } = modalPassword;
+    if ((password || "").trim().length < 6) {
+      flash("La contraseña debe tener al menos 6 caracteres.", false);
+      return;
+    }
     try {
-      await api.regenerarPasswordCentro(c.id);
+      await api.cambiarPasswordCentro(id, { password });
+      setModalPassword(null);
       await reload();
-      flash("Contraseña renovada.");
+      flash("Contraseña actualizada con éxito.");
     } catch (err) { flash(err.message, false); }
   };
 
@@ -134,8 +141,8 @@ export default function ModuloCentros() {
                         </div>
                       </div>
                       <button className="btn-secondary" style={{ fontSize: "0.72rem", padding: "3px 10px", marginLeft: "auto" }}
-                        onClick={() => renovarPass(c)}>
-                        🔄 Renovar
+                        onClick={() => setModalPassword({ id: c.id, centro_nombre: c.nombre, password: "" })}>
+                        🔑 Cambiar
                       </button>
                     </div>
                   </div>
@@ -145,6 +152,34 @@ export default function ModuloCentros() {
           </div>
         )
       }
+
+      {/* ── Modal Cambiar Contraseña ── */}
+      {modalPassword && (
+        <div className="overlay" onClick={() => setModalPassword(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: "1rem", color: "var(--navy)" }}>🔑 Cambiar Contraseña</h3>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+              Establecer nueva contraseña para el centro: <strong>{modalPassword.centro_nombre}</strong>
+            </p>
+            <form onSubmit={handleGuardarPassword} className="form">
+              <label>Nueva Contraseña
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={modalPassword.password}
+                  onChange={e => setModalPassword(p => ({ ...p, password: e.target.value }))}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </label>
+              <div className="modal-actions" style={{ marginTop: "1.25rem" }}>
+                <button type="submit" className="btn-primary">Guardar</button>
+                <button type="button" className="btn-ghost" onClick={() => setModalPassword(null)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal crear / editar ── */}
       {modalForm && (

@@ -66,7 +66,7 @@ export const api = {
   editarCentro: (id, d) => req("PUT", `/centros/${id}`, d),
   eliminarCentro: (id) => req("DELETE", `/centros/${id}`),
   getUsuarioCentro: (id) => req("GET", `/centros/${id}/usuario`),
-  regenerarPasswordCentro: (id) => req("PUT", `/centros/${id}/usuario`),
+  cambiarPasswordCentro: (id, d) => req("PUT", `/centros/${id}/usuario`, d),
   getSolicitudesCentro: () => req("GET", "/solicitudes/mis-centro"),
 
   getSolicitudesPendientes: () => req("GET", "/solicitudes/pendientes"),

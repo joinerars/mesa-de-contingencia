@@ -202,7 +202,7 @@ publicaciones ←1:N→ publicacion_comentarios
 
 ### Contraseñas
 - Hash con `pbkdf2:sha256` (werkzeug)
-- `password_plain` se almacena en BD para que el admin pueda ver/regenerar contraseñas de grupos y centros
+- `password_plain` se almacena en BD para que el admin pueda ver/modificar contraseñas de grupos y centros
 - Al crear un grupo/centro se autogenera usuario con username slug y contraseña aleatoria (10 chars)
 
 ---
@@ -243,7 +243,7 @@ publicaciones ←1:N→ publicacion_comentarios
 | POST | `/api/centros` | Admin | Crear centro + usuario automático |
 | PUT | `/api/centros/:id` | Admin | Editar centro y contactos |
 | DELETE | `/api/centros/:id` | Admin | Eliminar (falla si tiene solicitudes) |
-| PUT | `/api/centros/:id/usuario` | Admin | Regenerar contraseña |
+| PUT | `/api/centros/:id/usuario` | Auth | Modificar contraseña de centro (admin o propio centro) |
 
 ### Solicitudes
 | Método | Ruta | Auth | Descripción |
