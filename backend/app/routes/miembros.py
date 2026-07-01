@@ -67,7 +67,7 @@ def crear_miembro():
         new_id = cur.fetchone()[0]
     except Exception as ex:
         conn.close()
-        if "UQ_miembros_cedula" in str(ex) or "2601" in str(ex) or "2627" in str(ex):
+        if "uq_miembros_cedula" in str(ex).lower() or "2601" in str(ex) or "2627" in str(ex):
             return jsonify({"error": f"Ya existe un miembro registrado con la cédula {data.get('cedula')}."}), 409
         raise
 
@@ -118,7 +118,7 @@ def editar_miembro(miembro_id):
               miembro_id))
     except Exception as ex:
         conn.close()
-        if "UQ_miembros_cedula" in str(ex) or "2601" in str(ex) or "2627" in str(ex):
+        if "uq_miembros_cedula" in str(ex).lower() or "2601" in str(ex) or "2627" in str(ex):
             return jsonify({"error": f"Ya existe un miembro con la cédula {data.get('cedula')}."}), 409
         return jsonify({"error": f"Error al actualizar miembro: {ex}"}), 500
 
