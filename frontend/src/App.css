@@ -529,6 +529,15 @@ fieldset legend { padding: 0 0.4rem; font-size: 0.8rem; font-weight: 600; color:
   /* Formularios full-width */
   .form { max-width: 100%; }
   .form-row { grid-template-columns: 1fr; }
+  
+  /* Tabs desplazables en móvil */
+  .tabs { 
+    overflow-x: auto; 
+    flex-wrap: nowrap; 
+    padding-bottom: 0.25rem; 
+  }
+  .tabs::-webkit-scrollbar { height: 4px; }
+  .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
   /* Botones más grandes (touch friendly) */
   .btn-primary, .btn-secondary, .btn-ghost {
@@ -579,8 +588,16 @@ fieldset legend { padding: 0 0.4rem; font-size: 0.8rem; font-weight: 600; color:
   /* Mapa más chico */
   .mapa-container { height: 220px; }
 
-  /* Panel notificaciones full width */
-  .notif-panel { width: calc(100vw - 2rem); right: -0.5rem; }
+  /* Panel notificaciones centrado en móvil */
+  .notif-panel { 
+    position: fixed; 
+    top: 75px; 
+    left: 1rem; 
+    right: 1rem; 
+    width: auto; 
+    max-height: calc(100vh - 90px); 
+    overflow-y: auto; 
+  }
 
   /* Detalle de actividad */
   .detalle-row { flex-direction: column; gap: 0.2rem; }
