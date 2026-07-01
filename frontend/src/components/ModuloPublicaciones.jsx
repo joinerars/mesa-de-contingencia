@@ -15,6 +15,11 @@ export default function ModuloPublicaciones() {
   const [autorSeleccionado, setAutorSeleccionado] = useState("");
   const [guardando, setGuardando] = useState(false);
 
+  // Estado de comentarios
+  const [comentariosData, setComentariosData] = useState({});
+  const [pubAbierta, setPubAbierta] = useState(null);
+  const [textoComentario, setTextoComentario] = useState({});
+
   const isAdmin = user?.rol === "admin";
   const isPrivileged = isAdmin || user?.es_coordinador;
 
@@ -91,6 +96,57 @@ export default function ModuloPublicaciones() {
     try {
       await api.eliminarPublicacion(id);
       await cargarPublicaciones();
+    } catch (err) {
+      alert("Error al eliminar: " + err.message);
+    }
+  };
+
+  const toggleComentarios = async (pubId) => {
+    if (pubAbierta === pubId) {
+      setPubAbierta(null);
+      return;
+    }
+    setPubAbierta(pubId);
+    if (!comentariosData[pubId] || !comentariosData[pubId].lista) {
+      cargarComentarios(pubId);
+    }
+  };
+
+  const cargarComentarios = async (pubId) => {
+    setComentariosData(prev => ({ ...prev, [pubId]: { ...prev[pubId], cargando: true } }));
+    try {
+      const data = await api.getComentariosPub(pubId);
+      setComentariosData(prev => ({ ...prev, [pubId]: { cargando: false, lista: data } }));
+    } catch (err) {
+      console.error(err);
+      setComentariosData(prev => ({ ...prev, [pubId]: { cargando: false, lista: [] } }));
+    }
+  };
+
+  const enviarComentario = async (pubId) => {
+    const texto = textoComentario[pubId] || "";
+    if (!texto.trim() || texto.length > 750) return;
+
+    try {
+      await api.crearComentarioPub(pubId, texto);
+      setTextoComentario(prev => ({ ...prev, [pubId]: "" }));
+      await cargarComentarios(pubId);
+      setPublicaciones(prev => prev.map(p => 
+        p.id === pubId ? { ...p, num_comentarios: (p.num_comentarios || 0) + 1 } : p
+      ));
+    } catch (err) {
+      alert("Error al enviar comentario: " + err.message);
+    }
+  };
+
+  const eliminarComentario = async (pubId, comId) => {
+    if (!window.confirm("¿Eliminar este comentario?")) return;
+    try {
+      await api.eliminarComentarioPub(pubId, comId);
+      await cargarComentarios(pubId);
+      setPublicaciones(prev => prev.map(p => 
+        p.id === pubId ? { ...p, num_comentarios: Math.max(0, (p.num_comentarios || 1) - 1) } : p
+      ));
     } catch (err) {
       alert("Error al eliminar: " + err.message);
     }
@@ -186,6 +242,88 @@ export default function ModuloPublicaciones() {
               <div className="pub-card-body">
                 {pub.descripcion}
               </div>
+              <div className="pub-footer">
+                <button 
+                  className={`pub-btn-comentarios ${pubAbierta === pub.id ? 'active' : ''}`}
+                  onClick={() => toggleComentarios(pub.id)}
+                >
+                  💬 {pub.num_comentarios || 0}
+                </button>
+              </div>
+
+              {pubAbierta === pub.id && (
+                <div className="pub-comentarios-panel">
+                  {comentariosData[pub.id]?.cargando ? (
+                    <div className="empty">Cargando comentarios...</div>
+                  ) : (
+                    <>
+                      <div className="pub-comentarios-lista">
+                        {(comentariosData[pub.id]?.lista || []).length === 0 ? (
+                          <div className="empty" style={{ padding: "0.5rem" }}>Aún no hay comentarios.</div>
+                        ) : (
+                          comentariosData[pub.id].lista.map(c => {
+                            const esMio = c.autor === user.username;
+                            const puedeBorrar = esMio || isPrivileged;
+                            return (
+                              <div key={c.id} className={`comentario ${esMio ? "comentario-propio" : "comentario-otro"}`}>
+                                <div className="comentario-meta">
+                                  <span className="comentario-autor">{c.autor}</span>
+                                  <span className={`comentario-rol ${c.rol === 'admin' ? 'rol-admin' : 'rol-grupo'}`}>
+                                    {c.rol}
+                                  </span>
+                                  <span className="comentario-fecha">
+                                    {new Date(c.fecha).toLocaleString(undefined, {
+                                      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                                    })}
+                                  </span>
+                                  {puedeBorrar && (
+                                    <button 
+                                      className="pub-btn-delete" 
+                                      style={{ marginLeft: "auto", fontSize: "0.85rem", padding: "0 4px" }}
+                                      onClick={() => eliminarComentario(pub.id, c.id)}
+                                      title="Eliminar comentario"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="comentario-texto">{c.texto}</p>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      
+                      <div className="comentario-form" style={{ marginTop: "1rem" }}>
+                        <textarea
+                          placeholder="Escribe un comentario..."
+                          rows={2}
+                          maxLength={750}
+                          value={textoComentario[pub.id] || ""}
+                          onChange={e => setTextoComentario({ ...textoComentario, [pub.id]: e.target.value })}
+                        />
+                        <button 
+                          className="btn-assign"
+                          disabled={!(textoComentario[pub.id] || "").trim()}
+                          onClick={() => enviarComentario(pub.id)}
+                        >
+                          Enviar
+                        </button>
+                      </div>
+                      
+                      <div style={{ textAlign: "center", marginTop: "1.25rem" }}>
+                        <button 
+                          className="btn-ghost" 
+                          style={{ fontSize: "0.8rem", padding: "0.3rem 0.8rem" }}
+                          onClick={() => setPubAbierta(null)}
+                        >
+                          — Cerrar comentarios
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

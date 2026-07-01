@@ -161,6 +161,7 @@ mesa-de-contingencia/
 | `actividad_comentarios` | Comentarios en actividades | id, actividad_id, autor_username, autor_rol, grupo_id, texto |
 | `notificaciones` | Notificaciones push internas | id, para_rol, para_grupo_id, actividad_id, comentario_id, texto, leida |
 | `publicaciones` | Avisos/noticias generales | id, descripcion, autor_username, grupo_id, eliminada, fecha_creacion |
+| `publicacion_comentarios` | Respuestas/comentarios a publicaciones | id, publicacion_id, autor_username, autor_rol, grupo_id, texto, eliminado, fecha_creacion |
 
 ### Relaciones clave
 ```
@@ -279,9 +280,14 @@ usuarios ← centro_id → centros_atencion
 ### Publicaciones
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/api/publicaciones` | Auth | Listar publicaciones activas |
-| POST | `/api/publicaciones` | Privileged | Crear publicación |
-| DELETE | `/api/publicaciones/:id` | Privileged | Eliminar publicación (soft-delete) |
+| GET | `/api/publicaciones` | Auth | Listar todas (excluye eliminadas) y num de comentarios |
+| POST | `/api/publicaciones` | Privileged | Crear nueva |
+| DELETE | `/api/publicaciones/:id` | Privileged | Eliminar lógicamente |
+| GET | `/api/publicaciones/:id/comentarios` | Auth | Listar comentarios (excluye eliminados) |
+| POST | `/api/publicaciones/:id/comentarios` | Auth | Crear comentario en publicación |
+| DELETE | `/api/publicaciones/:id/comentarios/:cid` | Auth | Eliminar lógicamente comentario (propio o admin/coord) |
+
+### Insumos
 
 ---
 

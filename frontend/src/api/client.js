@@ -94,4 +94,8 @@ export const api = {
   getPublicaciones: () => req("GET", "/publicaciones"),
   crearPublicacion: (d) => req("POST", "/publicaciones", d),
   eliminarPublicacion: (id) => req("DELETE", `/publicaciones/${id}`),
+
+  getComentariosPub: (pubId) => req("GET", `/publicaciones/${pubId}/comentarios`),
+  crearComentarioPub: (pubId, texto) => req("POST", `/publicaciones/${pubId}/comentarios`, { texto }),
+  eliminarComentarioPub: (pubId, cid) => req("DELETE", `/publicaciones/${pubId}/comentarios/${cid}`),
 };
