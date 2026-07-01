@@ -4,9 +4,9 @@ import { useAuth } from "../context/AuthContext";
 
 const PRIORIDADES = ["Baja", "Normal", "Alta"];
 const PRIORIDAD_COLOR = { Alta: "#dc2626", Normal: "#d97706", Baja: "#6b7280" };
-const PRIORIDAD_BG    = { Alta: "#fee2e2", Normal: "#fef3c7", Baja: "#f3f4f6" };
-const ESTADO_COLOR    = { "Por ejecutar": "#e74c3c", "En ejecución": "#f39c12", "Ejecutado": "#27ae60" };
-const ESTADO_BG       = { "Por ejecutar": "#fee2e2", "En ejecución": "#fef3c7", "Ejecutado": "#dcfce7" };
+const PRIORIDAD_BG = { Alta: "#fee2e2", Normal: "#fef3c7", Baja: "#f3f4f6" };
+const ESTADO_COLOR = { "Por ejecutar": "#e74c3c", "En ejecución": "#f39c12", "Ejecutado": "#27ae60" };
+const ESTADO_BG = { "Por ejecutar": "#fee2e2", "En ejecución": "#fef3c7", "Ejecutado": "#dcfce7" };
 
 function nowLocal() {
   const d = new Date();
@@ -24,13 +24,18 @@ const FORM_VACIO = (user) => ({
 });
 
 export default function VistaCentro() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
-  const [showForm, setShowForm]       = useState(false);
-  const [form, setForm]               = useState(FORM_VACIO(user));
-  const [editando, setEditando]       = useState(null);
-  const [msg, setMsg]                 = useState(null);
-  const [detalle, setDetalle]         = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(FORM_VACIO(user));
+  const [editando, setEditando] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [detalle, setDetalle] = useState(null);
+
+  const handleLogout = async () => {
+    try { await api.logout(); } catch { }
+    logout();
+  };
 
   const reload = async () => setSolicitudes(await api.getSolicitudesCentro());
   useEffect(() => { reload(); }, []);
@@ -88,7 +93,7 @@ export default function VistaCentro() {
               <div style={{ fontSize: "0.75rem", color: "var(--gold-light)", opacity: 0.85 }}>Centro: {user.centro_nombre}</div>
             </div>
           </div>
-          <button className="btn-logout" onClick={() => { api.logout().catch(()=>{}); window.location.reload(); }}>Salir</button>
+          <button className="btn-logout" onClick={handleLogout}>Salir</button>
         </div>
       </div>
 
@@ -168,8 +173,8 @@ export default function VistaCentro() {
                       </span>
                       {s.actividad_estado
                         ? <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 700, background: ESTADO_BG[s.actividad_estado], color: ESTADO_COLOR[s.actividad_estado] }}>
-                            {s.actividad_estado === "En ejecución" ? "✅ En gestión" : s.actividad_estado === "Ejecutado" ? "✔ Atendida" : "⏳ Pendiente"}
-                          </span>
+                          {s.actividad_estado === "En ejecución" ? "✅ En gestión" : s.actividad_estado === "Ejecutado" ? "✔ Atendida" : "⏳ Pendiente"}
+                        </span>
                         : <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: "0.75rem", fontWeight: 700, background: "#f3f4f6", color: "#6b7280" }}>⏳ Pendiente</span>
                       }
                     </div>
@@ -187,7 +192,7 @@ export default function VistaCentro() {
                     </div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end" }}
-                       onClick={e => e.stopPropagation()}>
+                    onClick={e => e.stopPropagation()}>
                     {!gestionada(s) && (
                       <button className="btn-edit-grupo" title="Editar" onClick={() => abrirEditar(s)}>✏️</button>
                     )}
@@ -212,17 +217,17 @@ export default function VistaCentro() {
                 <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#9ca3af", letterSpacing: 1, marginBottom: "0.4rem" }}>ESTADO</div>
                 {detalle.actividad_estado
                   ? <span style={{ padding: "4px 14px", borderRadius: 12, fontSize: "0.85rem", fontWeight: 700, background: ESTADO_BG[detalle.actividad_estado], color: ESTADO_COLOR[detalle.actividad_estado] }}>
-                      {detalle.actividad_estado === "En ejecución" ? "✅ En gestión por la Facultad"
-                        : detalle.actividad_estado === "Ejecutado" ? "✔ Solicitud atendida"
+                    {detalle.actividad_estado === "En ejecución" ? "✅ En gestión por la Facultad"
+                      : detalle.actividad_estado === "Ejecutado" ? "✔ Solicitud atendida"
                         : "⏳ Pendiente de atención"}
-                    </span>
+                  </span>
                   : <span style={{ padding: "4px 14px", borderRadius: 12, fontSize: "0.85rem", fontWeight: 700, background: "#f3f4f6", color: "#6b7280" }}>⏳ Pendiente de atención</span>
                 }
               </div>
-              <DetalleRow label="Descripción"  value={detalle.descripcion} />
-              <DetalleRow label="Ubicación"    value={detalle.ubicacion} />
+              <DetalleRow label="Descripción" value={detalle.descripcion} />
+              <DetalleRow label="Ubicación" value={detalle.ubicacion} />
               <DetalleRow label="Fecha / Hora" value={detalle.fecha_hora ? new Date(detalle.fecha_hora).toLocaleString("es-VE") : null} />
-              <DetalleRow label="Registrada"   value={new Date(detalle.fecha_creacion).toLocaleString("es-VE")} />
+              <DetalleRow label="Registrada" value={new Date(detalle.fecha_creacion).toLocaleString("es-VE")} />
               {detalle.fecha_actualizacion && (
                 <DetalleRow label="Última edición" value={new Date(detalle.fecha_actualizacion).toLocaleString("es-VE")} />
               )}
@@ -250,7 +255,7 @@ export default function VistaCentro() {
               {detalle.lat && (
                 <div style={{ marginTop: "0.75rem" }}>
                   <iframe title="mapa"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${detalle.lng-0.005},${detalle.lat-0.005},${detalle.lng+0.005},${detalle.lat+0.005}&layer=mapnik&marker=${detalle.lat},${detalle.lng}`}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${detalle.lng - 0.005},${detalle.lat - 0.005},${detalle.lng + 0.005},${detalle.lat + 0.005}&layer=mapnik&marker=${detalle.lat},${detalle.lng}`}
                     width="100%" height="180"
                     style={{ border: "1px solid #e5e7eb", borderRadius: 8, display: "block" }}
                   />
@@ -374,8 +379,8 @@ function TablaItems({ items, onChange }) {
 
 function InsumoInput({ value, onChange }) {
   const [sugerencias, setSugerencias] = useState([]);
-  const [abierto, setAbierto]         = useState(false);
-  const [timer, setTimer]             = useState(null);
+  const [abierto, setAbierto] = useState(false);
+  const [timer, setTimer] = useState(null);
   const ref = useRef(null);
 
   const buscar = (q) => {
