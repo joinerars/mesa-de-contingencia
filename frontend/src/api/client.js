@@ -20,7 +20,7 @@ async function req(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(BASE + path, opts);
 
-  if (res.status === 401) {
+  if (res.status === 401 && !path.includes("/login")) {
     // Sesión expirada o token inválido — notificar a la app
     window.dispatchEvent(new CustomEvent("session-expired"));
     throw new Error("Sesión expirada");
