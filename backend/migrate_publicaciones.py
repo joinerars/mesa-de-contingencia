@@ -12,8 +12,9 @@ if not DATABASE_URL:
     exit(1)
 
 def migrate():
-    print(f"Conectando a {DATABASE_URL.split('@')[-1]}...")
-    conn = psycopg2.connect(DATABASE_URL)
+    schema = os.getenv("DB_SCHEMA", "public")
+    print(f"Conectando a {DATABASE_URL.split('@')[-1]} con esquema {schema}...")
+    conn = psycopg2.connect(DATABASE_URL, options=f"-c search_path={schema}")
     cur = conn.cursor()
 
     print("Creando tabla publicaciones...")

@@ -112,38 +112,39 @@ export default function ModuloPublicaciones() {
       {error && <div className="alert alert-err">{error}</div>}
 
       {isPrivileged && mostrarForm && (
-        <form className="pub-form" onSubmit={handleCrear}>
-          <h3>Crear Anuncio o Publicación</h3>
+        <form className="form pub-form" onSubmit={handleCrear} style={{ maxWidth: "100%", marginTop: "1.25rem" }}>
           
-          <div className="form-row" style={{ gridTemplateColumns: "1fr" }}>
+          <div className="form-row">
             <label>
-              Publicar como (Autor):
-              <select 
-                value={autorSeleccionado} 
-                onChange={(e) => setAutorSeleccionado(e.target.value)}
+              Contenido / Anuncio *
+              <textarea
+                rows={5}
+                value={nuevaDesc}
+                onChange={(e) => setNuevaDesc(e.target.value)}
+                placeholder="Escribe aquí la información importante a compartir..."
+                maxLength={2000}
                 required
-              >
-                {miembrosGrupo.map(m => (
-                  <option key={m.username} value={m.username}>{m.nombre}</option>
-                ))}
-              </select>
+              />
+              <div className={`pub-char-count ${nuevaDesc.length > 1900 ? 'count-warn' : ''}`}>
+                {nuevaDesc.length} / 2000
+              </div>
             </label>
-          </div>
 
-          <label>
-            Contenido:
-            <textarea
-              rows={4}
-              value={nuevaDesc}
-              onChange={(e) => setNuevaDesc(e.target.value)}
-              placeholder="Escribe aquí la información importante a compartir..."
-              maxLength={2000}
-              required
-            />
-            <div className={`pub-char-count ${nuevaDesc.length > 1900 ? 'count-warn' : ''}`}>
-              {nuevaDesc.length} / 2000
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+              <label>
+                Publicar como (Autor) *
+                <select 
+                  value={autorSeleccionado} 
+                  onChange={(e) => setAutorSeleccionado(e.target.value)}
+                  required
+                >
+                  {miembrosGrupo.map(m => (
+                    <option key={m.username} value={m.username}>{m.nombre}</option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </label>
+          </div>
 
           <div className="modal-actions" style={{ marginTop: "1rem" }}>
             <button type="submit" className="btn-primary" disabled={guardando || !formValido}>
