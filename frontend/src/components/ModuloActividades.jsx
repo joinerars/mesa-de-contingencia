@@ -23,6 +23,7 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
   const [miembros,      setMiembros]      = useState([]);
   const [gruposAll,     setGruposAll]     = useState([]);
   const [filtroGrupo,   setFiltroGrupo]   = useState("todos");
+  const [filtroAbierto, setFiltroAbierto] = useState(false);
   const [loading,       setLoading]       = useState({});
   const [detalle,       setDetalle]       = useState(null);
   const [tabDetalle,    setTabDetalle]    = useState("info");
@@ -127,16 +128,60 @@ export default function ModuloActividades({ refresh, abrirActividadId, onActivid
         <h2>📊 Tablero de Actividades</h2>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
           {(isPrivileged || grupos.length > 1) && (
-            <div className="filtro-grupo">
-              <label htmlFor="filtro-sel">Filtrar por grupo:</label>
-              <select id="filtro-sel" value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)}>
-                <option value="todos">Todos ({actividades.length})</option>
-                {grupos.map(g => (
-                  <option key={g.id} value={String(g.id)}>
-                    {g.nombre} ({actividades.filter(a => a.grupo.id === g.id).length})
-                  </option>
-                ))}
-              </select>
+            <div className="filtro-grupo" style={{ position: "relative" }}>
+              <label>Filtrar por grupo:</label>
+              <div
+                className="custom-select"
+                style={{
+                  padding: "0.4rem 0.75rem", border: "1px solid var(--border)",
+                  borderRadius: 7, fontSize: "0.875rem", background: "#f9fafb",
+                  cursor: "pointer", display: "flex", justifyContent: "space-between",
+                  alignItems: "center", gap: "0.5rem", minWidth: 200
+                }}
+                onClick={() => setFiltroAbierto(!filtroAbierto)}
+              >
+                <span>
+                  {filtroGrupo === "todos"
+                    ? `Todos (${actividades.length})`
+                    : `${grupos.find(g => String(g.id) === filtroGrupo)?.nombre || "Grupo"} (${actividades.filter(a => String(a.grupo.id) === filtroGrupo).length})`}
+                </span>
+                <span>▼</span>
+              </div>
+              {filtroAbierto && (
+                <>
+                  <div className="dropdown-backdrop" style={{ position: "fixed", inset: 0, zIndex: 98 }} onClick={() => setFiltroAbierto(false)} />
+                  <div
+                    className="dropdown-menu"
+                    style={{
+                      position: "absolute", top: "100%", left: 0, marginTop: "4px",
+                      background: "#fff", border: "1px solid var(--border)",
+                      borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      zIndex: 99, maxHeight: 250, overflowY: "auto",
+                      minWidth: "100%", width: "max-content", maxWidth: 350
+                    }}
+                  >
+                    <div
+                      style={{ padding: "0.5rem 0.75rem", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: "0.85rem" }}
+                      onClick={() => { setFiltroGrupo("todos"); setFiltroAbierto(false); }}
+                    >
+                      Todos ({actividades.length})
+                    </div>
+                    {grupos.map(g => (
+                      <div
+                        key={g.id}
+                        style={{
+                          padding: "0.5rem 0.75rem", cursor: "pointer",
+                          borderBottom: "1px solid #f3f4f6", fontSize: "0.85rem",
+                          background: filtroGrupo === String(g.id) ? "#f9fafb" : "transparent"
+                        }}
+                        onClick={() => { setFiltroGrupo(String(g.id)); setFiltroAbierto(false); }}
+                      >
+                        {g.nombre} ({actividades.filter(a => a.grupo.id === g.id).length})
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
           <button className="btn-primary" onClick={() => setModalRapida({ ...FORM_RAPIDA })}>
