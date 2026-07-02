@@ -3,7 +3,7 @@ import string
 from flask import request, jsonify
 from . import main_bp
 from ..db import get_connection
-from ..auth import require_admin, get_current_user
+from ..auth import require_admin, get_current_user, require_auth
 from werkzeug.security import generate_password_hash
 
 
@@ -162,9 +162,17 @@ def eliminar_centro(centro_id):
 
 
 @main_bp.put("/api/centros/<int:centro_id>/usuario")
-@require_admin
-def regenerar_password_centro(centro_id):
-    password = _gen_password()
+@require_auth
+def cambiar_password_centro(centro_id):
+    user = get_current_user()
+    if user["rol"] != "admin" and not (user["rol"] == "centro" and user["centro_id"] == centro_id):
+        return jsonify({"error": "Acceso denegado"}), 403
+
+    data = request.get_json() or {}
+    password = data.get("password", "").strip()
+    if not password or len(password) < 6:
+        return jsonify({"error": "La contraseña debe tener al menos 6 caracteres"}), 400
+
     h = generate_password_hash(password, method="pbkdf2:sha256")
     conn = get_connection()
     cur = conn.cursor()

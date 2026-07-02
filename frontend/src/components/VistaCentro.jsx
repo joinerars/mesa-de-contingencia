@@ -31,6 +31,23 @@ export default function VistaCentro() {
   const [editando, setEditando] = useState(null);
   const [msg, setMsg] = useState(null);
   const [detalle, setDetalle] = useState(null);
+  const [modalPassword, setModalPassword] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleGuardarPassword = async (e) => {
+    e.preventDefault();
+    const { id, password } = modalPassword;
+    if ((password || "").trim().length < 6) {
+      flash("La contraseña debe tener al menos 6 caracteres.", false);
+      return;
+    }
+    try {
+      await api.cambiarPasswordCentro(id, { password });
+      setModalPassword(null);
+      setShowPassword(false);
+      flash("Contraseña modificada exitosamente.");
+    } catch (err) { flash(err.message, false); }
+  };
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { }
@@ -93,7 +110,13 @@ export default function VistaCentro() {
               <div style={{ fontSize: "0.75rem", color: "var(--gold-light)", opacity: 0.85 }}>Centro: {user.centro_nombre}</div>
             </div>
           </div>
-          <button className="btn-logout" onClick={handleLogout}>Salir</button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <button className="btn-secondary" style={{ fontSize: "0.75rem", padding: "4px 10px", height: "fit-content" }}
+              onClick={() => { setModalPassword({ id: user.centro_id, centro_nombre: user.centro_nombre, password: "" }); setShowPassword(false); }}>
+              🔑 Cambiar Contraseña
+            </button>
+            <button className="btn-logout" onClick={handleLogout}>Salir</button>
+          </div>
         </div>
       </div>
 
@@ -310,6 +333,53 @@ export default function VistaCentro() {
                 <div className="modal-actions">
                   <button type="submit" className="btn-primary">Guardar cambios</button>
                   <button type="button" className="btn-ghost" onClick={() => setEditando(null)}>Cancelar</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* Modal Cambiar Contraseña */}
+        {modalPassword && (
+          <div className="overlay" onClick={() => { setModalPassword(null); setShowPassword(false); }}>
+            <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ marginBottom: "1rem", color: "var(--navy)" }}>🔑 Cambiar Contraseña</h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+                Establecer nueva contraseña para tu cuenta de acceso.
+              </p>
+              <form onSubmit={handleGuardarPassword} className="form">
+                <label>Nueva Contraseña
+                  <div className="password-input-container">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      autoFocus
+                      value={modalPassword.password}
+                      onChange={e => setModalPassword(p => ({ ...p, password: e.target.value }))}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password-btn"
+                      onClick={() => setShowPassword(p => !p)}
+                      title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-eye-off">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                          <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-eye">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </label>
+                <div className="modal-actions" style={{ marginTop: "1.25rem" }}>
+                  <button type="submit" className="btn-primary">Guardar</button>
+                  <button type="button" className="btn-ghost" onClick={() => { setModalPassword(null); setShowPassword(false); }}>Cancelar</button>
                 </div>
               </form>
             </div>
