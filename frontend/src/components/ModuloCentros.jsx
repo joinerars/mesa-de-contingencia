@@ -168,7 +168,7 @@ export default function ModuloCentros() {
                       </div>
                       <button className="btn-secondary" style={{ marginLeft: "auto", padding: "3px 10px", fontSize: "0.72rem" }}
                         onClick={() => { setModalPassword({ id: c.id, centro_nombre: c.nombre, password: "" }); setShowPassword(false); }}>
-                        🔑 Cambiar Contraseña
+                        🔑 Cambiar
                       </button>
                     </div>
                   </div>
